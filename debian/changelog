@@ -1,0 +1,120 @@
+plexus-archiver (3.6.0-2) unstable; urgency=medium
+
+  * Team upload.
+  * debian/maven.properties: Set source/target to 1.7 and fix the FTBFS.
+    Thanks to Santiago Vila for the report. (Closes: #906396)
+  * Declare compliance with Debian Policy 4.2.0.
+
+ -- Markus Koschany <apo@debian.org>  Thu, 23 Aug 2018 12:04:10 +0200
+
+plexus-archiver (3.6.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Fixes CVE-2018-1002200: Arbitrary file write vulnerability using
+      a specially crafted zip file (Closes: #900953)
+  * Removed Damien Raude-Morvan from the uploaders (Closes: #889426)
+  * Standards-Version updated to 4.1.4
+  * Switch to debhelper level 11
+  * Use salsa.debian.org Vcs-* URLs
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Thu, 07 Jun 2018 11:50:41 +0200
+
+plexus-archiver (3.5-2) unstable; urgency=medium
+
+  * Team upload.
+  * Depend on libplexus-container-default1.5-java instead of
+    libplexus-containers-java
+  * Standards-Version updated to 4.1.0
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 30 Aug 2017 10:29:30 +0200
+
+plexus-archiver (3.5-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Depend on libplexus-io-java (>= 3.0)
+    - New dependency on libxz-java, libsnappy-java and libcommons-compress-java
+    - New build dependency on libplexus-component-metadata-java and junit4
+    - Depend on libplexus-utils2-java instead of libplexus-utils-java
+    - Fixed a build failure with the version of plexus-utils in Debian
+    - Fixed encoding issues with the unit tests
+  * Build with maven-debian-helper instead of maven-ant-helper
+  * Standards-Version updated to 4.0.0
+  * Switch to debhelper level 10
+  * Use secure Vcs-* URLs
+  * Updated the Homepage field
+  * Converted debian/copyright to the Copyright Format 1.0
+  * Updated the location of the upstream repository in debian/watch
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Fri, 21 Jul 2017 01:30:08 +0200
+
+plexus-archiver (2.2-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Added a patch ensuring the compatibility with plexus-io 1.x
+  * debian/control:
+    - Mark the version 1.2 as breaking libmaven-assembly-plugin (<= 2.2~beta5-2)
+    - Updated Standards-Version to 3.9.6 (no changes)
+  * Moved the package to Git
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 05 May 2015 00:11:35 +0200
+
+plexus-archiver (1.2-1) unstable; urgency=low
+
+  * Team upload.
+  * New upstream release
+  * debian/control:
+    - Use canonical URLs for the Vcs-* fields
+    - Updated Standards-Version to 3.9.4 (no changes)
+  * Bump to debhelper 9 compat level
+  * debian/rules: Improved the clean target
+  * debian/watch: Updated to watch the new release tags on Github
+  * Removed debian/orig-tar.sh and use the tarball from Github directly
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 22 Oct 2013 12:11:28 +0200
+
+plexus-archiver (1.0~alpha12-3) unstable; urgency=low
+
+  * Add myself to Uploaders.
+  * Bump Standards-Version to 3.9.2: no changes needed.
+  * Fix FTBFS: remove version param (deprecated in debian-ant-helper)
+    and use POM version (Closes: #628337).
+  * Use mh_clean in clean rule.
+  * Bump to debhelper 7 compat level.
+  * Switch to source format 3.0 (quilt).
+
+ -- Damien Raude-Morvan <drazzib@debian.org>  Sun, 29 May 2011 13:33:38 +0200
+
+plexus-archiver (1.0~alpha12-2) unstable; urgency=low
+
+  * Fix versions in the POM
+
+ -- Ludovic Claude <ludovic.claude@laposte.net>  Thu, 09 Jul 2009 21:34:25 +0100
+
+plexus-archiver (1.0~alpha12-1) experimental; urgency=low
+
+  * New upstream release, add myself to Uploaders
+  * Change section to java
+  * Add the Maven POM to the package,
+  * Add a Build-Depends-Indep dependency on maven-repo-helper
+  * Use mh_installpom and mh_installjar to install the POM and the jar to the
+    Maven repository
+  * Remove the patch for the POM as it's no longer needed
+  * Remove the dependency on java2-runtime and default-java as this is a library
+  * Remove the Build dependency on quilt as it's no longer needed
+
+ -- Ludovic Claude <ludovic.claude@laposte.net>  Thu, 19 Mar 2009 20:08:20 +0000
+
+plexus-archiver (1.0~alpha10-2) unstable; urgency=low
+
+  * Change Depends: default-java to default-jre.
+
+ -- Torsten Werner <twerner@debian.org>  Fri, 26 Dec 2008 10:28:05 +0100
+
+plexus-archiver (1.0~alpha10-1) unstable; urgency=low
+
+  * Initial release. (Closes: #475780)
+
+ -- Torsten Werner <twerner@debian.org>  Tue, 09 Dec 2008 20:13:45 +0100

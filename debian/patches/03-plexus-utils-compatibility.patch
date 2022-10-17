@@ -1,0 +1,14 @@
+Description: Fixes the compatibility with the version of plexus-utils in Debian
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: not-needed
+--- a/src/main/java/org/codehaus/plexus/archiver/jar/JdkManifestFactory.java
++++ b/src/main/java/org/codehaus/plexus/archiver/jar/JdkManifestFactory.java
+@@ -62,7 +62,7 @@
+                        : null;
+ 
+         }
+-        catch ( final IOException e )
++        catch ( final Throwable e )
+         {
+             throw new AssertionError( e );
+         }
