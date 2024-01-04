@@ -16,22 +16,32 @@
  */
 package org.codehaus.plexus.archiver.jar;
 
-import org.apache.commons.compress.parallel.InputStreamSupplier;
-import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.archiver.util.ArchiveEntryUtils;
-import org.codehaus.plexus.archiver.util.ResourceUtils;
-import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
-import org.codehaus.plexus.components.io.resources.PlexusIoResource;
-import org.codehaus.plexus.util.FileUtils;
+import javax.inject.Named;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
+
+import org.apache.commons.compress.parallel.InputStreamSupplier;
+import org.apache.commons.io.output.NullPrintStream;
+import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
+import org.codehaus.plexus.util.IOUtil;
 
 /**
  * A {@link ModularJarArchiver} implementation that uses
@@ -50,6 +60,7 @@ import java.util.regex.Pattern;
  * archive created by {@link JarArchiver}
  * is left unchanged.
  */
+@Named( "mjar" )
 public class JarToolModularJarArchiver
     extends ModularJarArchiver
 {
@@ -63,7 +74,7 @@ public class JarToolModularJarArchiver
 
     private boolean moduleDescriptorFound;
 
-    private Path tempDir;
+    private boolean hasJarDateOption;
 
     public JarToolModularJarArchiver()
     {
@@ -92,47 +103,15 @@ public class JarToolModularJarArchiver
                             boolean addInParallel )
         throws IOException, ArchiverException
     {
-        // We store the module descriptors in temporary location
-        // and then add it to the JAR file using the JDK jar tool.
-        // It may look strange at first, but to update a JAR file
-        // you need to add new files[1] and the only files
-        //  we're sure that exists in modular JAR file
-        // are the module descriptors.
-        //
-        // [1] There are some exceptions but we need at least one file to
-        // ensure it will work in all cases.
         if ( jarTool != null && isModuleDescriptor( vPath ) )
         {
             getLogger().debug( "Module descriptor found: " + vPath );
 
             moduleDescriptorFound = true;
-
-            // Copy the module descriptor to temporary directory
-            // so later then can be added to the JAR archive
-            // by the jar tool.
-
-            if ( tempDir == null )
-            {
-                tempDir = Files
-                    .createTempDirectory( "plexus-archiver-modular_jar-" );
-                tempDir.toFile().deleteOnExit();
-            }
-
-            File destFile = tempDir.resolve( vPath ).toFile();
-            destFile.getParentFile().mkdirs();
-            destFile.deleteOnExit();
-
-            ResourceUtils.copyFile( is.get(), destFile );
-            ArchiveEntryUtils.chmod( destFile,  mode );
-            destFile.setLastModified( lastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
-                                                      ? System.currentTimeMillis()
-                                                      : lastModified );
         }
-        else
-        {
-            super.zipFile( is, zOut, vPath, lastModified,
-                fromArchive, mode, symlinkDestination, addInParallel );
-        }
+
+        super.zipFile( is, zOut, vPath, lastModified,
+            fromArchive, mode, symlinkDestination, addInParallel );
     }
 
     @Override
@@ -150,28 +129,66 @@ public class JarToolModularJarArchiver
             getLogger().debug( "Using the jar tool to " +
                 "update the archive to modular JAR." );
 
-			Integer result = (Integer) jarTool.getClass()
-                .getMethod( "run",
-                    PrintStream.class, PrintStream.class, String[].class )
-                .invoke( jarTool,
-                    System.out, System.err,
-                    getJarToolArguments() );
+            final Method jarRun = jarTool.getClass()
+                .getMethod( "run", PrintStream.class, PrintStream.class, String[].class );
+
+            if ( getLastModifiedTime() != null )
+            {
+                hasJarDateOption = isJarDateOptionSupported( jarRun );
+                getLogger().debug( "jar tool --date option is supported: " + hasJarDateOption );
+            }
+
+            Integer result = (Integer) jarRun.invoke( jarTool, System.out, System.err, getJarToolArguments() );
 
             if ( result != null && result != 0 )
             {
                 throw new ArchiverException( "Could not create modular JAR file. " +
                     "The JDK jar tool exited with " + result );
             }
+
+            if ( !hasJarDateOption && getLastModifiedTime() != null )
+            {
+                getLogger().debug( "Fix last modified time zip entries." );
+                // --date option not supported, fallback to rewrite the JAR file
+                // https://github.com/codehaus-plexus/plexus-archiver/issues/164
+                fixLastModifiedTimeZipEntries();
+            }
         }
-        catch ( ReflectiveOperationException | SecurityException e )
+        catch ( IOException | ReflectiveOperationException | SecurityException e )
         {
             throw new ArchiverException( "Exception occurred " +
                 "while creating modular JAR file", e );
         }
-        finally
+    }
+
+    /**
+     * Fallback to rewrite the JAR file with the correct timestamp if the {@code --date} option is not available.
+     */
+    private void fixLastModifiedTimeZipEntries()
+        throws IOException
+    {
+        long timeMillis = getLastModifiedTime().toMillis();
+        Path destFile = getDestFile().toPath();
+        Path tmpZip = Files.createTempFile( destFile.getParent(), null, null );
+        try ( ZipFile zipFile = new ZipFile( getDestFile() );
+              ZipOutputStream out = new ZipOutputStream( Files.newOutputStream( tmpZip ) ) )
         {
-            clearTempDirectory();
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while ( entries.hasMoreElements() )
+            {
+                ZipEntry entry = entries.nextElement();
+                // Not using setLastModifiedTime(FileTime) as it sets the extended timestamp
+                // which is not compatible with the jar tool output.
+                entry.setTime( timeMillis );
+                out.putNextEntry( entry );
+                if ( !entry.isDirectory() )
+                {
+                    IOUtil.copy( zipFile.getInputStream( entry ), out );
+                }
+                out.closeEntry();
+            }
         }
+        Files.move( tmpZip, destFile, StandardCopyOption.REPLACE_EXISTING );
     }
 
     /**
@@ -187,7 +204,7 @@ public class JarToolModularJarArchiver
 
             // the path is a module descriptor if it located
             // into the root of the archive or into the
-            // version are of a multi-release JAR file
+            // version area of a multi-release JAR file
             return prefix.isEmpty() ||
                 MRJAR_VERSION_AREA.matcher( prefix ).matches();
         }
@@ -203,17 +220,34 @@ public class JarToolModularJarArchiver
      * main class, etc.
      */
     private String[] getJarToolArguments()
+        throws IOException
     {
+        // We add empty temporary directory to the JAR file.
+        // It may look strange at first, but to update a JAR file
+        // you need to add new files[1]. If we add empty directory
+        // it will be ignored (not added to the archive), but
+        // the module descriptor will be updated and validated.
+        //
+        // [1] There are some exceptions (such as when the main class
+        // is updated) but we need at least empty directory
+        // to ensure it will work in all cases.
+        File tempEmptyDir = Files.createTempDirectory( null ).toFile();
+        tempEmptyDir.deleteOnExit();
+
         List<String> args = new ArrayList<>();
 
         args.add( "--update" );
         args.add( "--file" );
         args.add( getDestFile().getAbsolutePath() );
 
-        if ( getModuleMainClass() != null )
+        String mainClass = getModuleMainClass() != null
+                           ? getModuleMainClass()
+                           : getManifestMainClass();
+
+        if ( mainClass != null )
         {
             args.add( "--main-class" );
-            args.add( getModuleMainClass() );
+            args.add( mainClass );
         }
 
         if ( getModuleVersion() != null )
@@ -227,29 +261,50 @@ public class JarToolModularJarArchiver
             args.add( "--no-compress" );
         }
 
+        if ( hasJarDateOption )
+        {
+            // The --date option already normalize the time, so revert to the local time
+            FileTime localTime = revertToLocalTime( getLastModifiedTime() );
+            args.add( "--date" );
+            args.add( localTime.toString() );
+        }
+
         args.add( "-C" );
-        args.add( tempDir.toFile().getAbsolutePath() );
+        args.add( tempEmptyDir.getAbsolutePath() );
         args.add( "." );
 
-        return args.toArray( new String[]{} );
+        return args.toArray( new String[0] );
+    }
+
+    private static FileTime revertToLocalTime( FileTime time )
+    {
+        long restoreToLocalTime = time.toMillis();
+        Calendar cal = Calendar.getInstance( TimeZone.getDefault(), Locale.ROOT );
+        cal.setTimeInMillis( restoreToLocalTime );
+        restoreToLocalTime = restoreToLocalTime + ( cal.get( Calendar.ZONE_OFFSET ) + cal.get( Calendar.DST_OFFSET ) );
+        return FileTime.fromMillis( restoreToLocalTime );
     }
 
     /**
-     * Makes best effort the clean up
-     * the temporary directory used.
+     * Check support for {@code --date} option introduced since Java 17.0.3 (JDK-8279925).
+     *
+     * @return true if the JAR tool supports the {@code --date} option
      */
-    private void clearTempDirectory()
+    private boolean isJarDateOptionSupported( Method runMethod )
     {
         try
         {
-            if ( tempDir != null )
-            {
-                FileUtils.deleteDirectory( tempDir.toFile() );
-            }
+            // Test the output code validating the --date option.
+            String[] args = { "--date", "2099-12-31T23:59:59Z", "--version" };
+
+            PrintStream nullPrintStream = NullPrintStream.NULL_PRINT_STREAM;
+            Integer result = (Integer) runMethod.invoke( jarTool, nullPrintStream, nullPrintStream, args );
+
+            return result != null && result.intValue() == 0;
         }
-        catch ( IOException e )
+        catch ( ReflectiveOperationException | SecurityException e )
         {
-            // Ignore. It is just best effort.
+            return false;
         }
     }
 

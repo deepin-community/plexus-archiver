@@ -7,50 +7,50 @@ Forwarded: not-needed
  import java.io.IOException;
  import org.codehaus.plexus.archiver.ArchiverException;
  import org.codehaus.plexus.archiver.util.Compressor;
--import org.iq80.snappy.SnappyOutputStream;
-+import org.xerial.snappy.SnappyOutputStream;
+-import org.iq80.snappy.SnappyFramedOutputStream;
++import org.xerial.snappy.SnappyFramedOutputStream;
  import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
  import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
  
 --- a/src/main/java/org/codehaus/plexus/archiver/snappy/SnappyUnArchiver.java
 +++ b/src/main/java/org/codehaus/plexus/archiver/snappy/SnappyUnArchiver.java
-@@ -22,7 +22,7 @@
- import javax.annotation.Nonnull;
+@@ -24,7 +24,7 @@
+ 
  import org.codehaus.plexus.archiver.AbstractUnArchiver;
  import org.codehaus.plexus.archiver.ArchiverException;
--import org.iq80.snappy.SnappyInputStream;
-+import org.xerial.snappy.SnappyInputStream;
+-import org.iq80.snappy.SnappyFramedInputStream;
++import org.xerial.snappy.SnappyFramedInputStream;
  import static org.codehaus.plexus.archiver.util.Streams.bufferedInputStream;
  import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
  import static org.codehaus.plexus.archiver.util.Streams.copyFully;
 --- a/src/main/java/org/codehaus/plexus/archiver/tar/TarArchiver.java
 +++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarArchiver.java
-@@ -38,7 +38,7 @@
+@@ -44,7 +44,7 @@
  import org.codehaus.plexus.components.io.resources.PlexusIoResource;
  import org.codehaus.plexus.util.IOUtil;
  import org.codehaus.plexus.util.StringUtils;
 -import org.iq80.snappy.SnappyOutputStream;
 +import org.xerial.snappy.SnappyOutputStream;
- import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
- 
- /**
---- a/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
-+++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
-@@ -30,7 +30,7 @@
- import org.codehaus.plexus.archiver.ArchiverException;
- import org.codehaus.plexus.archiver.util.Streams;
- import org.codehaus.plexus.util.IOUtil;
--import org.iq80.snappy.SnappyInputStream;
-+import org.xerial.snappy.SnappyInputStream;
  
  /**
   * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
-@@ -153,7 +153,7 @@
+--- a/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
+@@ -35,7 +35,7 @@
+ import org.codehaus.plexus.archiver.ArchiverException;
+ import org.codehaus.plexus.archiver.util.Streams;
+ import org.codehaus.plexus.components.io.filemappers.FileMapper;
+-import org.iq80.snappy.SnappyFramedInputStream;
++import org.xerial.snappy.SnappyFramedInputStream;
+ 
+ /**
+  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
+@@ -154,7 +154,7 @@
          }
          else if ( compression == UntarCompressionMethod.SNAPPY )
          {
--            return new SnappyInputStream( istream, true );
-+            return new SnappyInputStream( istream );
+-            return new SnappyFramedInputStream( istream, true );
++            return new SnappyFramedInputStream( istream );
          }
          else if ( compression == UntarCompressionMethod.XZ )
          {

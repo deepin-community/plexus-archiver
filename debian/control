@@ -6,21 +6,23 @@ Uploaders:
  Torsten Werner <twerner@debian.org>,
  Ludovic Claude <ludovic.claude@laposte.net>
 Build-Depends:
- debhelper (>= 11~),
+ debhelper-compat (= 13),
  default-jdk,
  junit4,
+ libassertj-core-java,
  libcommons-compress-java (>= 1.9),
- libplexus-component-metadata-java,
- libplexus-container-default1.5-java,
- libplexus-io-java (>= 3.0),
+ libeclipse-sisu-maven-plugin-java,
+ libmaven-resources-plugin-java,
+ libplexus-io-java (>= 3.2),
  libplexus-utils2-java,
  libsnappy-java,
  libxz-java,
  maven-debian-helper (>= 2.2)
-Standards-Version: 4.2.0
+Standards-Version: 4.6.2
 Vcs-Git: https://salsa.debian.org/java-team/plexus-archiver.git
 Vcs-Browser: https://salsa.debian.org/java-team/plexus-archiver
 Homepage: https://codehaus-plexus.github.io/plexus-archiver/
+Rules-Requires-Root: no
 
 Package: libplexus-archiver-java
 Architecture: all

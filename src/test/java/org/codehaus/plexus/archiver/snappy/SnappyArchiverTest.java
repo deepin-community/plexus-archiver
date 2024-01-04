@@ -24,8 +24,8 @@
 package org.codehaus.plexus.archiver.snappy;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -35,6 +35,12 @@ import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests for the snappy archiver
@@ -43,14 +49,15 @@ public class SnappyArchiverTest
     extends BasePlexusArchiverTest
 {
 
+    @Test
     public void testCreateArchive()
         throws Exception
     {
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.addDirectory( getTestFile( "src" ) );
         zipArchiver.setDestFile( getTestFile( "target/output/archiveForSnappy.zip" ) );
         zipArchiver.createArchive();
-        SnappyArchiver archiver = (SnappyArchiver) lookup( Archiver.ROLE, "snappy" );
+        SnappyArchiver archiver = (SnappyArchiver) lookup( Archiver.class, "snappy" );
         String[] inputFiles = new String[ 1 ];
         inputFiles[0] = "archiveForSnappy.zip";
         archiver.addDirectory( getTestFile( "target/output" ), inputFiles, null );
@@ -58,10 +65,11 @@ public class SnappyArchiverTest
         archiver.createArchive();
     }
 
+    @Test
     public void testCreateEmptyArchive()
         throws Exception
     {
-        SnappyArchiver archiver = (SnappyArchiver) lookup( Archiver.ROLE, "snappy" );
+        SnappyArchiver archiver = (SnappyArchiver) lookup( Archiver.class, "snappy" );
         archiver.setDestFile( getTestFile( "target/output/empty.snappy" ) );
         try
         {
@@ -74,12 +82,13 @@ public class SnappyArchiverTest
         }
     }
 
+    @Test
     public void testCreateResourceCollection()
         throws Exception
     {
         final File pomFile = new File( "pom.xml" );
         final File snappyFile = new File( "target/output/pom.xml.snappy" );
-        SnappyArchiver SnappyArchiver = (SnappyArchiver) lookup( Archiver.ROLE, "snappy" );
+        SnappyArchiver SnappyArchiver = (SnappyArchiver) lookup( Archiver.class, "snappy" );
         SnappyArchiver.setDestFile( snappyFile );
         SnappyArchiver.addFile( pomFile, "pom.xml" );
         FileUtils.removePath( snappyFile.getPath() );
@@ -88,7 +97,7 @@ public class SnappyArchiverTest
         System.out.println( "Created: " + snappyFile.getAbsolutePath() );
 
         final File zipFile = new File( "target/output/pom.zip" );
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.setDestFile( zipFile );
         zipArchiver.addArchivedFileSet( snappyFile, "prfx/" );
         FileUtils.removePath( zipFile.getPath() );
@@ -97,7 +106,7 @@ public class SnappyArchiverTest
         final ZipFile juZipFile = new ZipFile( zipFile );
         final ZipEntry zipEntry = juZipFile.getEntry( "prfx/target/output/pom.xml" );
         final InputStream archivePom = juZipFile.getInputStream( zipEntry );
-        final InputStream pom = new FileInputStream( pomFile );
+        final InputStream pom = Files.newInputStream( pomFile.toPath() );
 
         assertTrue( Arrays.equals( IOUtil.toByteArray( pom ), IOUtil.toByteArray( archivePom ) ) );
         archivePom.close();
@@ -111,6 +120,7 @@ public class SnappyArchiverTest
      *
      * @throws Exception
      */
+    @Test
     public void testsnappyIsForcedBehaviour() throws Exception
     {
         SnappyArchiver SnappyArchiver = (SnappyArchiver) createArchiver( "snappy" );
@@ -129,7 +139,7 @@ public class SnappyArchiverTest
 
         final long firstRunTime = SnappyArchiver.getDestFile().lastModified();
 
-        assertFalse( creationTime == firstRunTime );
+        assertNotEquals( creationTime, firstRunTime );
 
         SnappyArchiver = (SnappyArchiver) createArchiver( "snappy" );
 

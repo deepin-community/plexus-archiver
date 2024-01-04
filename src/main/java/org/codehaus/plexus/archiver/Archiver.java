@@ -19,9 +19,13 @@ package org.codehaus.plexus.archiver;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.attribute.FileTime;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection;
@@ -44,17 +48,15 @@ public interface Archiver
      */
     int DEFAULT_SYMLILNK_MODE = UnixStat.LINK_FLAG | UnixStat.DEFAULT_LINK_PERM;
 
-    String ROLE = Archiver.class.getName();
+    String DUPLICATES_ADD = "add";
 
-    public static final String DUPLICATES_ADD = "add";
+    String DUPLICATES_PRESERVE = "preserve";
 
-    public static final String DUPLICATES_PRESERVE = "preserve";
+    String DUPLICATES_SKIP = "skip";
 
-    public static final String DUPLICATES_SKIP = "skip";
+    String DUPLICATES_FAIL = "fail";
 
-    public static final String DUPLICATES_FAIL = "fail";
-
-    public static final Set<String> DUPLICATES_VALID_BEHAVIORS = new HashSet<String>()
+    Set<String> DUPLICATES_VALID_BEHAVIORS = new HashSet<String>()
     {
 
         private static final long serialVersionUID = 1L;
@@ -74,8 +76,6 @@ public interface Archiver
 
     /**
      * Obsolete, use {@link #addFileSet(FileSet)}.
-     * You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
      *
      * @deprecated Will go away in next major version
      */
@@ -85,8 +85,6 @@ public interface Archiver
 
     /**
      * Obsolete, use {@link #addFileSet(FileSet)}.
-     * You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
      *
      * @deprecated Will go away in next major version
      */
@@ -95,8 +93,7 @@ public interface Archiver
         throws ArchiverException;
 
     /**
-     * Obsolete, use {@link #addFileSet(FileSet)}.You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
+     * Obsolete, use {@link #addFileSet(FileSet)}.
      *
      * @deprecated Will go away in next major version
      */
@@ -106,8 +103,6 @@ public interface Archiver
 
     /**
      * Obsolete, use {@link #addFileSet(FileSet)}.
-     * You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
      *
      * @deprecated Will go away in next major version
      */
@@ -119,7 +114,7 @@ public interface Archiver
      * Adds the given file set to the archive. This method is basically obsoleting {@link #addDirectory(File)},
      * {@link #addDirectory(File, String)}, {@link #addDirectory(File, String[], String[])}, and
      * {@link #addDirectory(File, String, String[], String[])}. However, as these methods are in widespread use, they
-     * cannot easily be made deprecated.
+     * cannot easily be deprecated.
      *
      * @throws ArchiverException
      * Adding the file set failed.
@@ -141,8 +136,7 @@ public interface Archiver
         throws ArchiverException;
 
     /**
-     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}. You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
+     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}.
      *
      * @deprecated Will go away in next major version
      */
@@ -150,8 +144,7 @@ public interface Archiver
         throws ArchiverException;
 
     /**
-     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}. You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
+     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}.
      *
      * @deprecated Will go away in next major version
      */
@@ -160,8 +153,7 @@ public interface Archiver
         throws ArchiverException;
 
     /**
-     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}. You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
+     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}.
      *
      * @deprecated Will go away in next major version
      */
@@ -170,8 +162,7 @@ public interface Archiver
         throws ArchiverException;
 
     /**
-     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}. You can use "inline" of this method in your
-     * IDE to get the proper implementation for this release.
+     * Obsolete, use {@link #addArchivedFileSet(ArchivedFileSet)}.
      *
      * @deprecated Will go away in next major version
      */
@@ -183,7 +174,7 @@ public interface Archiver
      * Adds the given archive file set to the archive. This method is basically obsoleting
      * {@link #addArchivedFileSet(File)}, {@link #addArchivedFileSet(File, String[], String[])}, and
      * {@link #addArchivedFileSet(File, String, String[], String[])}. However, as these methods are in widespread use,
-     * they cannot easily be made deprecated.
+     * they cannot easily be deprecated.
      *
      * Stream transformers are supported on this method
      *
@@ -196,7 +187,7 @@ public interface Archiver
      * Adds the given archive file set to the archive. This method is basically obsoleting
      * {@link #addArchivedFileSet(File)}, {@link #addArchivedFileSet(File, String[], String[])}, and
      * {@link #addArchivedFileSet(File, String, String[], String[])}. However, as these methods are in widespread use,
-     * they cannot easily be made deprecated.
+     * they cannot easily be deprecated.
      *
      * @param charset the encoding to use, particularly useful to specific non-standard filename encodings
      * for some kinds of archives (for instance zip files)
@@ -224,7 +215,7 @@ public interface Archiver
     /**
      * Adds the given resource collection to the archive.
      *
-     * Stream transformers are supported om this method
+     * Stream transformers are supported on this method
      *
      * @since 1.0-alpha-10
      */
@@ -298,7 +289,7 @@ public interface Archiver
      * archiver should compare the timestamps of included files with the timestamp of the target archive and rebuild the
      * archive only, if the latter timestamp precedes the former timestamps. Checking for timestamps will typically
      * offer a performance gain (in particular, if the following steps in a build can be suppressed, if an archive isn't
-     * recrated) on the cost that you get inaccurate results from time to time. In particular, removal of source files
+     * recreated) on the cost that you get inaccurate results from time to time. In particular, removal of source files
      * won't be detected.
      * </p>
      * <p>
@@ -307,7 +298,7 @@ public interface Archiver
      * uptodate checks.
      * </p>
      *
-     * @return True, if the target archive should always be created; false otherwise
+     * @return true if the target archive should always be created; false otherwise
      *
      * @see #setForced(boolean)
      * @see #isSupportingForced()
@@ -320,7 +311,7 @@ public interface Archiver
      * should compare the timestamps of included files with the timestamp of the target archive and rebuild the archive
      * only, if the latter timestamp precedes the former timestamps. Checking for timestamps will typically offer a
      * performance gain (in particular, if the following steps in a build can be suppressed, if an archive isn't
-     * recrated) on the cost that you get inaccurate results from time to time. In particular, removal of source files
+     * recreated) on the cost that you get inaccurate results from time to time. In particular, removal of source files
      * won't be detected.
      * </p>
      * <p>
@@ -330,7 +321,7 @@ public interface Archiver
      * </p>
      *
      * @param forced
-     * True, if the target archive should always be created; false otherwise
+     * true, if the target archive should always be created; false otherwise
      *
      * @see #isForced()
      * @see #isSupportingForced()
@@ -340,7 +331,7 @@ public interface Archiver
     /**
      * Returns, whether the archive supports uptodate checks. If so, you may set {@link #setForced(boolean)} to true.
      *
-     * @return True, if the archiver does support uptodate checks, false otherwise
+     * @return true, if the archiver does support uptodate checks, false otherwise
      *
      * @see #setForced(boolean)
      * @see #isForced()
@@ -353,20 +344,20 @@ public interface Archiver
     String getDuplicateBehavior();
 
     /**
-     * Set the behavior of this archiver when duplicate files are detected. One of: <br/>
+     * Set the behavior of this archiver when duplicate files are detected. One of: <br>
      * <ul>
      * <li>add - Add the duplicates to the archive as duplicate entries</li>
      * <li>skip/preserve - Leave the first entry encountered in the archive, skip the new one</li>
      * <li>fail - throw an {@link ArchiverException}</li>
      * </ul>
-     * <br/>
+     * <br>
      * See {@link Archiver#DUPLICATES_ADD}, {@link Archiver#DUPLICATES_SKIP}, {@link Archiver#DUPLICATES_PRESERVE},
      * {@link Archiver#DUPLICATES_FAIL}.
      */
     void setDuplicateBehavior( String duplicate );
 
     /**
-     * to use or not the jvm method for file permissions : user all <b>not active for group permissions</b>
+     * to use or not the jvm method for file permissions: user all <b>not active for group permissions</b>
      *
      * @since 1.1
      * @param useJvmChmod
@@ -394,4 +385,115 @@ public interface Archiver
      */
     void setIgnorePermissions( final boolean ignorePermissions );
 
+    /**
+     * Define forced last modification date for entries (if non null).
+     *
+     * @param lastModifiedDate
+     * @since 4.2.0
+     * @deprecated Use {@link #setLastModifiedTime(FileTime)} instead
+     */
+    @Deprecated
+    void setLastModifiedDate( final Date lastModifiedDate );
+
+    /**
+     * @since 4.2.0
+     * @deprecated Use {@link #getLastModifiedTime()} instead
+     */
+    @Deprecated
+    Date getLastModifiedDate();
+
+    /**
+     * Sets the last modification time of the entries (if non null).
+     *
+     * @param lastModifiedTime to set in the archive entries
+     *
+     * @see #getLastModifiedTime()
+     * @since 4.3.0
+     */
+    void setLastModifiedTime( final FileTime lastModifiedTime );
+
+    /**
+     * Returns the last modification time of the archiver.
+     *
+     * @return The last modification time of the archiver, null if not specified
+     *
+     * @see #setLastModifiedTime(FileTime)
+     * @since 4.3.0
+     */
+    FileTime getLastModifiedTime();
+
+    /**
+     * Set filename comparator, used to sort file entries when scanning directories since File.list() does not
+     * guarantee any order.
+     *
+     * @since 4.2.0
+     */
+    void setFilenameComparator( Comparator<String> filenameComparator );
+
+    /**
+     * @since 4.2.0
+     */
+    void setOverrideUid( int uid );
+
+    /**
+     * @since 4.2.0
+     */
+    void setOverrideUserName( String userName );
+
+    /**
+     * @since 4.2.0
+     */
+    int getOverrideUid();
+
+    /**
+     * @since 4.2.0
+     */
+    String getOverrideUserName();
+
+    /**
+     * @since 4.2.0
+     */
+    void setOverrideGid( int gid );
+
+    /**
+     * @since 4.2.0
+     */
+    void setOverrideGroupName( String groupName );
+
+    /**
+     * @since 4.2.0
+     */
+    int getOverrideGid();
+
+    /**
+     * @since 4.2.0
+     */
+    String getOverrideGroupName();
+
+    /**
+     * This method is obsolete and will just call {@link #configureReproducibleBuild(FileTime)}
+     * with the Date transformed into FileTime.
+     *
+     * @param lastModifiedDate the date to use for archive entries last modified time
+     * @since 4.2.0
+     * @deprecated Use {@link #configureReproducibleBuild(FileTime)} instead.
+     */
+    @Deprecated
+    void configureReproducible( Date lastModifiedDate );
+
+    /**
+     * Configure the archiver to create archives in a reproducible way (see
+     * <a href="https://reproducible-builds.org/">Reproducible Builds</a>).
+     * <p>This will configure:
+     * <ul>
+     * <li>reproducible archive entries order,</li>
+     * <li>defined entries timestamp</li>
+     * </ul>
+     *
+     * @param lastModifiedTime The last modification time of the entries
+     *
+     * @see <a href="https://reproducible-builds.org/">Reproducible Builds</a>
+     * @since 4.3.0
+     */
+    void configureReproducibleBuild( FileTime lastModifiedTime );
 }

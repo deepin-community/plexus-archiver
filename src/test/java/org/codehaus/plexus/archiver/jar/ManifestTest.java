@@ -16,28 +16,38 @@
  */
 package org.codehaus.plexus.archiver.jar;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.util.jar.Attributes;
-import org.codehaus.plexus.PlexusTestCase;
+
+import org.codehaus.plexus.archiver.TestSupport;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author Emmanuel Venisse
  */
 public class ManifestTest
-    extends PlexusTestCase
+        extends TestSupport
 {
 
+    @Test
     public void testManifest1()
         throws Exception
     {
         Manifest manifest = getManifest( "src/test/resources/manifests/manifest1.mf" );
         String version = manifest.getManifestVersion();
-        assertEquals( "Manifest was not created with correct version - ", "1.0", version );
+        assertEquals( "1.0", version, "Manifest was not created with correct version - " );
     }
 
+    @Test
     public void testManifest2()
         throws Exception
     {
@@ -51,6 +61,7 @@ public class ManifestTest
         }
     }
 
+    @Test
     public void testManifest3()
         throws Exception
     {
@@ -64,6 +75,7 @@ public class ManifestTest
         }
     }
 
+    @Test
     public void testManifest5()
         throws Exception
     {
@@ -77,6 +89,7 @@ public class ManifestTest
         }
     }
 
+    @Test
     public void testAddConfiguredSection()
         throws ManifestException
     {
@@ -88,6 +101,7 @@ public class ManifestTest
         assertEquals( "baz", manifest.getAttributes( "fud" ).getValue( "bar" ) );
     }
 
+    @Test
     public void testAttributeLongLineWrite()
         throws Exception
     {
@@ -100,13 +114,13 @@ public class ManifestTest
         attr.setValue( longLineOfChars );
         attr.write( writer );
         writer.flush();
-        assertEquals( "should be multiline",
-                      "test: 123456789 123456789 123456789 123456789 123456789 123456789 1234"
+        assertEquals( "test: 123456789 123456789 123456789 123456789 123456789 123456789 1234"
                           + Manifest.EOL + " 56789 123456789 123456789 123456789 " + Manifest.EOL,
-                      writer.toString() );
+                      writer.toString(), "should be multiline" );
 
     }
 
+    @Test
     public void testAttributeLongLineWriteNonAscii()
         throws Exception
     {
@@ -122,8 +136,7 @@ public class ManifestTest
         attr.setValue( longLineOfChars );
         attr.write( writer );
         writer.flush();
-        assertEquals( "should be multiline",
-                      "test: Ед докэндё форынчйбюж зкрипторэм в"
+        assertEquals( "test: Ед докэндё форынчйбюж зкрипторэм в"
                           + Manifest.EOL + " екж, льабятюр ыкжпэтэндяз мэль ут, квю"
                           + Manifest.EOL + " о ут модо либриз такематыш. Ыюм йн лаб"
                           + Manifest.EOL + " орамюз компльыктётюр, векж ыпикурэи д"
@@ -133,10 +146,11 @@ public class ManifestTest
                           + Manifest.EOL + " оморюм кончюлату векж экз. Ку щольыат "
                           + Manifest.EOL + " вёртюты ёнэрмйщ ыюм."
                           + Manifest.EOL,
-                      writer.toString() );
+                      writer.toString(), "should be multiline" );
 
     }
 
+    @Test
     public void testDualClassPath()
         throws ManifestException, IOException
     {
@@ -146,6 +160,7 @@ public class ManifestTest
         assertEquals( "baz", attribute );
     }
 
+    @Test
     public void testAttributeMultiLineValue()
         throws Exception
     {
@@ -154,6 +169,7 @@ public class ManifestTest
 
     }
 
+    @Test
     public void testAttributeDifferentLineEndings()
         throws Exception
     {
@@ -162,6 +178,7 @@ public class ManifestTest
 
     }
 
+    @Test
     public void testAddAttributes()
         throws ManifestException, IOException
     {
@@ -172,6 +189,7 @@ public class ManifestTest
         assertEquals( "bzz", manifest.getSection( "Fudz" ).getAttributeValue( "boz" ) );
     }
 
+    @Test
     public void testRemoveAttributes()
         throws ManifestException, IOException
     {
@@ -183,6 +201,7 @@ public class ManifestTest
         assertNull( fudz.getAttributeValue( "boz" ) );
     }
 
+    @Test
     public void testAttributeSerialization()
         throws IOException, ManifestException
     {
@@ -202,6 +221,7 @@ public class ManifestTest
         assertTrue( s.contains( "attB: caB" ) );
     }
 
+    @Test
     public void testDefaultBehaviour()
     {
         Manifest manifest = new Manifest();
@@ -212,6 +232,7 @@ public class ManifestTest
         assertNull( manifest.getSection( "Fud" ) );
     }
 
+    @Test
     public void testGetDefaultManifest()
         throws Exception
     {
@@ -220,6 +241,11 @@ public class ManifestTest
         assertEquals( 2, mainAttributes.size() );
         assertTrue( mainAttributes.containsKey( new java.util.jar.Attributes.Name( "Manifest-Version" ) ) );
         assertTrue( mainAttributes.containsKey( new java.util.jar.Attributes.Name( "Created-By" ) ) );
+
+        mf = Manifest.getDefaultManifest( true );
+        mainAttributes = mf.getMainAttributes();
+        assertEquals( 1, mainAttributes.size() );
+        assertTrue( mainAttributes.containsKey( new java.util.jar.Attributes.Name( "Manifest-Version" ) ) );
     }
 
     public void checkMultiLineAttribute( String in, String expected )
@@ -236,7 +262,7 @@ public class ManifestTest
         // so in case of failure you can see what went wrong.
         System.err.println( "String: " + dumpString( writer.toString() ) );
 
-        assertEquals( "should be indented multiline", "test: " + expected, writer.toString() );
+        assertEquals( "test: " + expected, writer.toString(), "should be indented multiline" );
     }
 
     private static String dumpString( String in )
@@ -270,6 +296,7 @@ public class ManifestTest
         return out;
     }
 
+    @Test
     public void testAddAttributesPlexusManifest()
         throws ManifestException, IOException
     {
@@ -279,6 +306,7 @@ public class ManifestTest
         assertEquals( "bzz", manifest.getSection( "Fudz" ).getAttributeValue( "boz" ) );
     }
 
+    @Test
     public void testRemoveAttributesPlexusManifest()
         throws ManifestException, IOException
     {
@@ -290,6 +318,7 @@ public class ManifestTest
         assertNull( fudz.getAttributeValue( "boz" ) );
     }
 
+    @Test
     public void testAttributeSerializationPlexusManifest()
         throws IOException, ManifestException
     {
@@ -310,6 +339,7 @@ public class ManifestTest
         assertTrue( s.contains( "attB: caB" ) );
     }
 
+    @Test
     public void testClassPathPlexusManifest()
         throws ManifestException
     {
@@ -319,6 +349,7 @@ public class ManifestTest
         assertEquals( "fud duf", manifest.getMainSection().getAttributeValue( ManifestConstants.ATTRIBUTE_CLASSPATH ) );
     }
 
+    @Test
     public void testAddConfiguredSectionPlexusManifest()
         throws ManifestException
     {
@@ -337,21 +368,15 @@ public class ManifestTest
      *
      * @return a manifest
      *
-     * @throws java.io.IOException .
-     * @throws ManifestException .
+     * @throws java.io.IOException
+     * @throws ManifestException
      */
     private Manifest getManifest( String filename )
         throws IOException, ManifestException
     {
-        InputStream is = new FileInputStream( getTestFile( filename ) );
-
-        try
+        try ( InputStream is = Files.newInputStream( getTestFile( filename ).toPath() ) )
         {
             return new Manifest( is );
-        }
-        finally
-        {
-            is.close();
         }
     }
 

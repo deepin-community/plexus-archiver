@@ -1,21 +1,33 @@
 package org.codehaus.plexus.archiver.zip;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Method;
-import org.codehaus.plexus.PlexusTestCase;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.codehaus.plexus.archiver.Archiver;
+import org.codehaus.plexus.archiver.TestSupport;
 import org.codehaus.plexus.archiver.UnArchiver;
+import org.codehaus.plexus.components.io.fileselectors.FileInfo;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 import org.codehaus.plexus.components.io.fileselectors.IncludeExcludeFileSelector;
 import org.codehaus.plexus.util.FileUtils;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author Jason van Zyl
  */
 public class ZipUnArchiverTest
-    extends PlexusTestCase
+        extends TestSupport
 {
 
+    @Test
     public void testExtractingZipPreservesExecutableFlag()
         throws Exception
     {
@@ -42,6 +54,7 @@ public class ZipUnArchiverTest
         }
     }
 
+    @Test
     public void testZeroFileModeInZip()
         throws Exception
     {
@@ -70,6 +83,7 @@ public class ZipUnArchiverTest
         }
     }
 
+    @Test
     public void testUnarchiveUtf8()
         throws Exception
     {
@@ -86,6 +100,62 @@ public class ZipUnArchiverTest
         assertTrue( new File( dest, "aPi\u00F1ata.txt" ).exists() );
         assertTrue( new File( dest, "an\u00FCmlaut.txt" ).exists() );
         assertTrue( new File( dest, "\u20acuro.txt" ).exists() );
+    }
+
+    @Test
+    public void testUnarchiveUnicodePathExtra()
+        throws Exception
+    {
+        File dest = new File( "target/output/unzip/unicodePathExtra" );
+        dest.mkdirs();
+        for ( String name : dest.list() )
+        {
+            new File( dest, name ).delete();
+        }
+        assertEquals( 0, dest.list().length );
+
+        final ZipUnArchiver unarchiver = getZipUnArchiver( new File( "src/test/resources/unicodePathExtra/efsclear.zip" ) );
+        unarchiver.setDestFile( dest );
+        unarchiver.extract();
+        // a Unicode Path extra field should only be used when its CRC matches the header file name
+        assertEquals( new HashSet<>( Arrays.asList( "nameonly-name", "goodextra-extra", "badextra-name" ) ),
+                      new HashSet<>( Arrays.asList( dest.list() ) ),
+                      "should use good extra fields but not bad ones" );
+    }
+
+    @Test
+    public void testUnarchiveUnicodePathExtraSelector()
+        throws Exception
+    {
+        File dest = new File( "target/output/unzip/unicodePathExtraSelector" );
+        dest.mkdirs();
+        for ( String name : dest.list() )
+        {
+            new File( dest, name ).delete();
+        }
+        assertEquals( 0, dest.list().length );
+
+        class CollectingSelector implements FileSelector
+        {
+            public Set<String> collection = new HashSet<>();
+            @Override
+            public boolean isSelected( FileInfo fileInfo ) throws IOException
+            {
+                collection.add( fileInfo.getName() );
+                return false;
+            }
+        }
+        CollectingSelector selector = new CollectingSelector();
+
+        final ZipUnArchiver unarchiver = getZipUnArchiver( new File( "src/test/resources/unicodePathExtra/efsclear.zip" ) );
+        unarchiver.setDestFile( dest );
+        unarchiver.setFileSelectors( new FileSelector[] { selector } );
+        unarchiver.extract();
+
+        assertEquals( 0, dest.list().length, "should not extract anything" );
+        // a Unicode Path extra field should only be used when its CRC matches the header file name
+        assertEquals( new HashSet<>( Arrays.asList( "nameonly-name", "goodextra-extra", "badextra-name" ) ),
+                      selector.collection, "should use good extra fields but not bad ones" );
     }
 
     private void runUnarchiver( String path, FileSelector[] selectors, boolean[] results )
@@ -119,11 +189,12 @@ public class ZipUnArchiverTest
 
     private ZipUnArchiver getZipUnArchiver( File testJar ) throws Exception
     {
-        ZipUnArchiver zu = (ZipUnArchiver) lookup( UnArchiver.ROLE, "zip" );
+        ZipUnArchiver zu = (ZipUnArchiver) lookup( UnArchiver.class, "zip" );
         zu.setSourceFile( testJar );
         return zu;
     }
 
+    @Test
     public void testExtractingADirectoryFromAJarFile()
         throws Exception
     {
@@ -139,6 +210,7 @@ public class ZipUnArchiverTest
                        } );
     }
 
+    @Test
     public void testSelectors()
         throws Exception
     {
@@ -190,6 +262,7 @@ public class ZipUnArchiverTest
                        } );
     }
 
+    @Test
     public void testExtractingZipWithEntryOutsideDestDirThrowsException()
             throws Exception
     {
@@ -214,11 +287,56 @@ public class ZipUnArchiverTest
         assertTrue( ex.getMessage().startsWith( "Entry is outside of the target directory" ) );
     }
 
+    @Test
+    public void testZipOutputSizeException()
+        throws Exception
+    {
+        Exception ex = null;
+        String s = "target/zip-size-tests";
+        File testZip = new File( getBasedir(), "src/test/jars/test.zip" );
+        File outputDirectory = new File( getBasedir(), s );
+
+        FileUtils.deleteDirectory( outputDirectory );
+
+        try
+        {
+            ZipUnArchiver zu = getZipUnArchiver( testZip );
+            zu.setMaxOutputSize( 10L );
+            zu.extract( "", outputDirectory );
+        }
+        catch ( Exception e )
+        {
+            ex = e;
+        }
+
+        assertNotNull( ex );
+        assertTrue( ex.getMessage().startsWith( "Maximum output size limit reached" ) );
+    }
+
+    @Test
+    public void testZipMaxOutputSizeEqualToExtractedFileSize()
+        throws Exception
+    {
+        long extractedFileSize = 11L;
+        String s = "target/zip-size-tests";
+        File testZip = new File( getBasedir(), "src/test/jars/test.zip" );
+        File outputDirectory = new File( getBasedir(), s );
+
+        FileUtils.deleteDirectory( outputDirectory );
+
+        ZipUnArchiver zu = getZipUnArchiver( testZip );
+        zu.setMaxOutputSize( extractedFileSize );
+        zu.extract( "", outputDirectory );
+
+        File extractedFile = new File( outputDirectory, "test.sh" );
+        assertEquals( extractedFileSize, extractedFile.length() );
+    }
+
     private ZipArchiver getZipArchiver()
     {
         try
         {
-            return (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+            return (ZipArchiver) lookup( Archiver.class, "zip" );
         }
         catch ( Exception e )
         {

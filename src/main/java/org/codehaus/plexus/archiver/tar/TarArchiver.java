@@ -16,16 +16,22 @@
  */
 package org.codehaus.plexus.archiver.tar;
 
+import javax.inject.Named;
+
+import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
+
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.util.zip.GZIPOutputStream;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.ArchiverException;
@@ -39,11 +45,11 @@ import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.StringUtils;
 import org.iq80.snappy.SnappyOutputStream;
-import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
 
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
  */
+@Named( "tar" )
 public class TarArchiver
     extends AbstractArchiver
 {
@@ -57,23 +63,23 @@ public class TarArchiver
 
     private TarCompressionMethod compression = TarCompressionMethod.none;
 
-    private TarOptions options = new TarOptions();
+    private final TarOptions options = new TarOptions();
 
     private TarArchiveOutputStream tOut;
 
     /**
      * Set how to handle long files, those with a path&gt;100 chars.
      * Optional, default=warn.
-     * <p/>
-     * Allowable values are
+     * <p>
+     * Allowable values are </p>
      * <ul>
-     * <li> truncate - paths are truncated to the maximum length
-     * <li> fail - paths greater than the maximum cause a build exception
-     * <li> warn - paths greater than the maximum cause a warning and GNU is used
-     * <li> gnu - GNU extensions are used for any paths greater than the maximum.
-     * <li> posix - posix extensions are used for any paths greater than the maximum.
-     * <li> posixwarn - posix extensions are used (with warning) for any paths greater than the maximum.
-     * <li> omit - paths greater than the maximum are omitted from the archive
+     * <li> truncate - paths are truncated to the maximum length </li>
+     * <li> fail - paths greater than the maximum cause a build exception </li>
+     * <li> warn - paths greater than the maximum cause a warning and GNU is used </li>
+     * <li> gnu - GNU extensions are used for any paths greater than the maximum. </li>
+     * <li> posix - posix extensions are used for any paths greater than the maximum. </li>
+     * <li> posixwarn - posix extensions are used (with warning) for any paths greater than the maximum. </li>
+     * <li> omit - paths greater than the maximum are omitted from the archive </li>
      * </ul>
      *
      * @param mode the mode to handle long file names.
@@ -133,7 +139,7 @@ public class TarArchiver
 
         try
         {
-            tOut = new TarArchiveOutputStream( compress( compression, new FileOutputStream( tarFile ) ), "UTF8" );
+            tOut = new TarArchiveOutputStream( compress( compression, Files.newOutputStream( tarFile.toPath() ) ), "UTF8" );
             if ( longFileMode.isTruncateMode() )
             {
                 tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_TRUNCATE );
@@ -281,10 +287,17 @@ public class TarArchiver
                 te = new TarArchiveEntry( vPath );
             }
 
-            long teLastModified = entry.getResource().getLastModified();
-            te.setModTime( teLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
-                               ? System.currentTimeMillis()
-                               : teLastModified );
+            if ( getLastModifiedTime() == null )
+            {
+                long teLastModified = entry.getResource().getLastModified();
+                te.setModTime( teLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
+                                   ? System.currentTimeMillis()
+                                   : teLastModified );
+            }
+            else
+            {
+                te.setModTime( getLastModifiedTime().toMillis() );
+            }
 
             if ( entry.getType() == ArchiveEntry.SYMLINK )
             {
@@ -465,14 +478,15 @@ public class TarArchiver
     /**
      * Valid Modes for Compression attribute to Tar Task
      */
-    public static enum TarCompressionMethod
+    public enum TarCompressionMethod
     {
 
         none,
         gzip,
         bzip2,
         snappy,
-        xz
+        xz,
+        zstd
 
     }
 
@@ -481,7 +495,7 @@ public class TarArchiver
     {
         if ( TarCompressionMethod.gzip.equals( tarCompressionMethod ) )
         {
-            return Streams.bufferedOutputStream( new GZIPOutputStream( ostream ) );
+            return bufferedOutputStream( new GZIPOutputStream( ostream ) );
         }
         else if ( TarCompressionMethod.bzip2.equals( tarCompressionMethod ) )
         {
@@ -494,6 +508,10 @@ public class TarArchiver
         else if ( TarCompressionMethod.xz.equals( tarCompressionMethod ) )
         {
             return new XZCompressorOutputStream( bufferedOutputStream( ostream ) );
+        }
+        else if ( TarCompressionMethod.zstd.equals( tarCompressionMethod ) )
+        {
+            return new ZstdCompressorOutputStream( bufferedOutputStream( ostream ) );
         }
 
         return ostream;

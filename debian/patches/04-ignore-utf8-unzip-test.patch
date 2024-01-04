@@ -3,12 +3,11 @@ Author: Emmanuel Bourg <ebourg@apache.org>
 Forwarded: not-needed
 --- a/src/test/java/org/codehaus/plexus/archiver/zip/ZipUnArchiverTest.java
 +++ b/src/test/java/org/codehaus/plexus/archiver/zip/ZipUnArchiverTest.java
-@@ -70,7 +70,7 @@
+@@ -83,7 +83,6 @@
          }
      }
  
--    public void testUnarchiveUtf8()
-+    public void _testUnarchiveUtf8()
+-    @Test
+     public void testUnarchiveUtf8()
          throws Exception
      {
-         File dest = new File( "target/output/unzip/utf8" );

@@ -15,20 +15,23 @@
  */
 package org.codehaus.plexus.archiver.xz;
 
+import javax.inject.Named;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+
+import org.codehaus.plexus.archiver.util.Streams;
 import org.codehaus.plexus.components.io.attributes.FileAttributes;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
 import org.codehaus.plexus.components.io.resources.PlexusIoCompressedFileResourceCollection;
-import org.codehaus.plexus.util.IOUtil;
 
 /**
  * @author lore
  * @since 3.3
  */
+@Named( "xz" )
 public class PlexusIoXZResourceCollection extends PlexusIoCompressedFileResourceCollection
 {
 
@@ -47,17 +50,7 @@ public class PlexusIoXZResourceCollection extends PlexusIoCompressedFileResource
     @Override
     protected InputStream getInputStream( File file ) throws IOException
     {
-        FileInputStream fileIs = new FileInputStream( file );
-        try
-        {
-            final InputStream result = XZUnArchiver.getXZInputStream( fileIs );
-            fileIs = null;
-            return result;
-        }
-        finally
-        {
-            IOUtil.close( fileIs );
-        }
+        return XZUnArchiver.getXZInputStream( Streams.fileInputStream( file ) );
     }
 
 }

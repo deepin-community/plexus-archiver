@@ -19,15 +19,14 @@ package org.codehaus.plexus.archiver.zip;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.util.Date;
 import java.util.Enumeration;
 import javax.annotation.Nonnull;
-import org.apache.commons.compress.archivers.zip.UnicodePathExtraField;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.input.BoundedInputStream;
+import org.apache.commons.io.input.CountingInputStream;
 import org.codehaus.plexus.archiver.AbstractUnArchiver;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
@@ -43,6 +42,8 @@ public abstract class AbstractZipUnArchiver
 
     private String encoding = "UTF8";
 
+    private long maxOutputSize = Long.MAX_VALUE;
+
     public AbstractZipUnArchiver()
     {
     }
@@ -54,7 +55,6 @@ public abstract class AbstractZipUnArchiver
 
     /**
      * Sets the encoding to assume for file names and comments.
-     * <p/>
      * <p>
      * Set to <code>native-encoding</code> if you want your platform's native encoding, defaults to UTF8.
      * </p>
@@ -66,6 +66,21 @@ public abstract class AbstractZipUnArchiver
             encoding = null;
         }
         this.encoding = encoding;
+    }
+
+    /**
+     * Set maximum allowed size of the produced output.
+     *
+     * It may be used as a protection against <a href="https://en.wikipedia.org/wiki/Zip_bomb">zip bombs</a>.
+     *
+     * @param maxOutputSize max size of the produced output, in bytes. Must be greater than 0
+     * @throws IllegalArgumentException if specified output size is less or equal to 0
+     */
+    public void setMaxOutputSize( long maxOutputSize ) {
+        if ( maxOutputSize <= 0 ) {
+            throw new IllegalArgumentException( "Invalid max output size specified: " + maxOutputSize );
+        }
+        this.maxOutputSize = maxOutputSize;
     }
 
     private static class ZipEntryFileInfo
@@ -85,20 +100,7 @@ public abstract class AbstractZipUnArchiver
 
         public String getName()
         {
-            try
-            {
-                final UnicodePathExtraField unicodePath =
-                    (UnicodePathExtraField) zipEntry.getExtraField( UnicodePathExtraField.UPATH_ID );
-
-                return unicodePath != null
-                           ? new String( unicodePath.getUnicodeName(), "UTF-8" )
-                           : zipEntry.getName();
-
-            }
-            catch ( final UnsupportedEncodingException e )
-            {
-                throw new AssertionError( e );
-            }
+            return zipEntry.getName();
         }
 
         @Override
@@ -160,45 +162,7 @@ public abstract class AbstractZipUnArchiver
     protected void execute()
         throws ArchiverException
     {
-        getLogger().debug( "Expanding: " + getSourceFile() + " into " + getDestDirectory() );
-        org.apache.commons.compress.archivers.zip.ZipFile zf = null;
-        InputStream in = null;
-        try
-        {
-            zf = new org.apache.commons.compress.archivers.zip.ZipFile( getSourceFile(), encoding, true );
-            final Enumeration e = zf.getEntriesInPhysicalOrder();
-            while ( e.hasMoreElements() )
-            {
-                final ZipArchiveEntry ze = (ZipArchiveEntry) e.nextElement();
-                final ZipEntryFileInfo fileInfo = new ZipEntryFileInfo( zf, ze );
-                if ( isSelected( fileInfo.getName(), fileInfo ) )
-                {
-                    in = zf.getInputStream( ze );
-
-                    extractFileIfIncluded( getSourceFile(), getDestDirectory(), in, fileInfo.getName(),
-                                           new Date( ze.getTime() ), ze.isDirectory(),
-                                           ze.getUnixMode() != 0 ? ze.getUnixMode() : null,
-                                           resolveSymlink( zf, ze ) );
-
-                    in.close();
-                    in = null;
-                }
-            }
-
-            zf.close();
-            zf = null;
-
-            getLogger().debug( "expand complete" );
-        }
-        catch ( final IOException ioe )
-        {
-            throw new ArchiverException( "Error while expanding " + getSourceFile().getAbsolutePath(), ioe );
-        }
-        finally
-        {
-            IOUtils.closeQuietly( in );
-            IOUtils.closeQuietly( zf );
-        }
+        execute( "", getDestDirectory() );
     }
 
     private String resolveSymlink( ZipFile zf, ZipArchiveEntry ze )
@@ -214,29 +178,19 @@ public abstract class AbstractZipUnArchiver
         }
     }
 
-    private void extractFileIfIncluded( final File sourceFile, final File destDirectory, final InputStream inputStream,
-                                        final String name, final Date time, final boolean isDirectory,
-                                        final Integer mode, String symlinkDestination )
-        throws IOException, ArchiverException
-    {
-        extractFile( sourceFile, destDirectory, inputStream, name, time, isDirectory, mode, symlinkDestination );
-    }
-
     @Override
     protected void execute( final String path, final File outputDirectory )
         throws ArchiverException
     {
-        org.apache.commons.compress.archivers.zip.ZipFile zipFile = null;
-        InputStream in = null;
-        try
+        getLogger().debug( "Expanding: " + getSourceFile() + " into " + outputDirectory );
+        try ( ZipFile zipFile = new ZipFile( getSourceFile(), encoding, true ) )
         {
-            zipFile = new org.apache.commons.compress.archivers.zip.ZipFile( getSourceFile(), encoding, true );
-
-            final Enumeration e = zipFile.getEntriesInPhysicalOrder();
+            long remainingSpace = maxOutputSize;
+            final Enumeration<ZipArchiveEntry> e = zipFile.getEntriesInPhysicalOrder();
 
             while ( e.hasMoreElements() )
             {
-                final ZipArchiveEntry ze = (ZipArchiveEntry) e.nextElement();
+                final ZipArchiveEntry ze = e.nextElement();
                 final ZipEntryFileInfo fileInfo = new ZipEntryFileInfo( zipFile, ze );
                 if ( !isSelected( ze.getName(), fileInfo ) )
                 {
@@ -245,29 +199,28 @@ public abstract class AbstractZipUnArchiver
 
                 if ( ze.getName().startsWith( path ) )
                 {
-                    in = zipFile.getInputStream( ze );
+                    try ( InputStream in = zipFile.getInputStream( ze ) )
+                    {
+                        BoundedInputStream bis = new BoundedInputStream( in, remainingSpace + 1 );
+                        CountingInputStream cis = new CountingInputStream( bis );
+                        extractFile( getSourceFile(), outputDirectory, cis,
+                                     ze.getName(), new Date( ze.getTime() ), ze.isDirectory(),
+                                     ze.getUnixMode() != 0 ? ze.getUnixMode() : null,
+                                     resolveSymlink( zipFile, ze ), getFileMappers() );
 
-                    extractFileIfIncluded( getSourceFile(), outputDirectory, in,
-                                           ze.getName(), new Date( ze.getTime() ), ze.isDirectory(),
-                                           ze.getUnixMode() != 0 ? ze.getUnixMode() : null,
-                                           resolveSymlink( zipFile, ze ) );
-
-                    in.close();
-                    in = null;
+                        remainingSpace -= cis.getByteCount();
+                        if ( remainingSpace < 0 )
+                        {
+                            throw new ArchiverException( "Maximum output size limit reached" );
+                        }
+                    }
                 }
             }
-
-            zipFile.close();
-            zipFile = null;
+            getLogger().debug( "expand complete" );
         }
         catch ( final IOException ioe )
         {
             throw new ArchiverException( "Error while expanding " + getSourceFile().getAbsolutePath(), ioe );
-        }
-        finally
-        {
-            IOUtils.closeQuietly( in );
-            IOUtils.closeQuietly( zipFile );
         }
     }
 
