@@ -18,30 +18,42 @@ package org.codehaus.plexus.archiver;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
+
 import org.codehaus.plexus.archiver.util.ArchiveEntryUtils;
 import org.codehaus.plexus.components.io.attributes.SymlinkUtils;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
-import org.codehaus.plexus.logging.AbstractLogEnabled;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// TODO there should really be constructors which take the source file.
 
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
- * @todo there should really be constructors which take the source file.
  */
 public abstract class AbstractUnArchiver
-    extends AbstractLogEnabled
     implements UnArchiver, FinalizerEnabled
 {
+    private final Logger logger = LoggerFactory.getLogger( getClass() );
+
+    protected Logger getLogger()
+    {
+        return logger;
+    }
 
     private File destDirectory;
 
@@ -51,7 +63,9 @@ public abstract class AbstractUnArchiver
 
     private boolean overwrite = true;
 
-    private List finalizers;
+    private FileMapper[] fileMappers;
+
+    private List<ArchiveFinalizer> finalizers;
 
     private FileSelector[] fileSelectors;
 
@@ -126,6 +140,18 @@ public abstract class AbstractUnArchiver
     }
 
     @Override
+    public FileMapper[] getFileMappers()
+    {
+        return fileMappers;
+    }
+
+    @Override
+    public void setFileMappers( final FileMapper[] fileMappers )
+    {
+        this.fileMappers = fileMappers;
+    }
+
+    @Override
     public final void extract()
         throws ArchiverException
     {
@@ -148,14 +174,14 @@ public abstract class AbstractUnArchiver
     {
         if ( finalizers == null )
         {
-            finalizers = new ArrayList();
+            finalizers = new ArrayList<>();
         }
 
         finalizers.add( finalizer );
     }
 
     @Override
-    public void setArchiveFinalizers( final List archiveFinalizers )
+    public void setArchiveFinalizers( final List<ArchiveFinalizer> archiveFinalizers )
     {
         finalizers = archiveFinalizers;
     }
@@ -165,10 +191,8 @@ public abstract class AbstractUnArchiver
     {
         if ( finalizers != null )
         {
-            for ( Object finalizer1 : finalizers )
+            for ( ArchiveFinalizer finalizer : finalizers )
             {
-                final ArchiveFinalizer finalizer = (ArchiveFinalizer) finalizer1;
-
                 finalizer.finalizeArchiveExtraction( this );
             }
         }
@@ -301,16 +325,24 @@ public abstract class AbstractUnArchiver
     }
 
     protected void extractFile( final File srcF, final File dir, final InputStream compressedInputStream,
-                                final String entryName, final Date entryDate, final boolean isDirectory,
-                                final Integer mode, String symlinkDestination )
+                                String entryName, final Date entryDate, final boolean isDirectory,
+                                final Integer mode, String symlinkDestination, final FileMapper[] fileMappers )
         throws IOException, ArchiverException
     {
+        if ( fileMappers != null )
+        {
+            for ( final FileMapper fileMapper : fileMappers )
+            {
+                entryName = fileMapper.getMappedFileName( entryName );
+            }
+        }
+
         // Hmm. Symlinks re-evaluate back to the original file here. Unsure if this is a good thing...
-        final File f = FileUtils.resolveFile( dir, entryName );
+        final File targetFileName = FileUtils.resolveFile( dir, entryName );
 
         // Make sure that the resolved path of the extracted file doesn't escape the destination directory
         String canonicalDirPath = dir.getCanonicalPath();
-        String canonicalDestPath = f.getCanonicalPath();
+        String canonicalDestPath = targetFileName.getCanonicalPath();
 
         if ( !canonicalDestPath.startsWith( canonicalDirPath ) )
         {
@@ -319,13 +351,13 @@ public abstract class AbstractUnArchiver
 
         try
         {
-            if ( !isOverwrite() && f.exists() && ( f.lastModified() >= entryDate.getTime() ) )
+            if ( !shouldExtractEntry( dir, targetFileName, entryName, entryDate ) )
             {
                 return;
             }
 
             // create intermediary directories - sometimes zip don't add them
-            final File dirF = f.getParentFile();
+            final File dirF = targetFileName.getParentFile();
             if ( dirF != null )
             {
                 dirF.mkdirs();
@@ -333,40 +365,83 @@ public abstract class AbstractUnArchiver
 
             if ( !StringUtils.isEmpty( symlinkDestination ) )
             {
-                SymlinkUtils.createSymbolicLink( f, new File( symlinkDestination ) );
+                SymlinkUtils.createSymbolicLink( targetFileName, new File( symlinkDestination ) );
             }
             else if ( isDirectory )
             {
-                f.mkdirs();
+                targetFileName.mkdirs();
             }
             else
             {
-                OutputStream out = null;
-                try
+                try ( OutputStream out = Files.newOutputStream( targetFileName.toPath() ) )
                 {
-                    out = new FileOutputStream( f );
-
                     IOUtil.copy( compressedInputStream, out );
-                    out.close();
-                    out = null;
-                }
-                finally
-                {
-                    IOUtil.close( out );
                 }
             }
 
-            f.setLastModified( entryDate.getTime() );
+            targetFileName.setLastModified( entryDate.getTime() );
 
             if ( !isIgnorePermissions() && mode != null && !isDirectory )
             {
-                ArchiveEntryUtils.chmod( f, mode );
+                ArchiveEntryUtils.chmod( targetFileName, mode );
             }
         }
         catch ( final FileNotFoundException ex )
         {
-            getLogger().warn( "Unable to expand to file " + f.getPath() );
+            getLogger().warn( "Unable to expand to file " + targetFileName.getPath() );
         }
     }
 
+    /**
+     * Counter for casing message emitted, visible for testing.
+     */
+    final AtomicInteger casingMessageEmitted = new AtomicInteger( 0 );
+
+    // Visible for testing
+    protected boolean shouldExtractEntry( File targetDirectory, File targetFileName, String entryName, Date entryDate ) throws IOException
+    {
+        //     entryname  | entrydate | filename   | filedate | behavior
+        // (1) readme.txt | 1970      | -          | -        | always extract if the file does not exist
+        // (2) readme.txt | 1970      | readme.txt | 2020     | do not overwrite unless isOverwrite() is true
+        // (3) readme.txt | 2020      | readme.txt | 1970     | always override when the file is older than the archive entry
+        // (4) README.txt | 1970      | readme.txt | 2020     | case-insensitive filesystem: warn + do not overwrite unless isOverwrite()
+        //                                                      case-sensitive filesystem: extract without warning
+        // (5) README.txt | 2020      | readme.txt | 1970     | case-insensitive filesystem: warn + overwrite because entry is newer
+        //                                                      case-sensitive filesystem: extract without warning
+
+        // The canonical file name follows the name of the archive entry, but takes into account the case-
+        // sensitivity of the filesystem. So on a case-sensitive file system, file.exists() returns false for
+        // scenario (4) and (5).
+        // No matter the case sensitivity of the file system, file.exists() returns false when there is no file with the same name (1).
+        if ( !targetFileName.exists() )
+        {
+            return true;
+        }
+
+        boolean entryIsDirectory = entryName.endsWith( "/" ); // directory entries always end with '/', regardless of the OS.
+        String canonicalDestPath = targetFileName.getCanonicalPath();
+        String suffix = (entryIsDirectory ? "/" : "");
+        String relativeCanonicalDestPath = canonicalDestPath.replace(
+                targetDirectory.getCanonicalPath() + File.separatorChar,
+                "" )
+                + suffix;
+        boolean fileOnDiskIsOlderThanEntry = targetFileName.lastModified() < entryDate.getTime();
+        boolean differentCasing = !normalizedFileSeparator( entryName ).equals( normalizedFileSeparator( relativeCanonicalDestPath ) );
+
+        // Warn for case (4) and (5) if the file system is case-insensitive
+        if ( differentCasing )
+        {
+            String casingMessage = String.format( Locale.ENGLISH, "Archive entry '%s' and existing file '%s' names differ only by case."
+                + " This may lead to an unexpected outcome on case-insensitive filesystems.", entryName, canonicalDestPath );
+            getLogger().warn( casingMessage );
+            casingMessageEmitted.incrementAndGet();
+        }
+
+        // Override the existing file if isOverwrite() is true or if the file on disk is older than the one in the archive
+        return isOverwrite() || fileOnDiskIsOlderThanEntry;
+    }
+    
+    private String normalizedFileSeparator(String pathOrEntry) {
+    	return pathOrEntry.replace("/", File.separator);
+    }
 }

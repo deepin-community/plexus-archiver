@@ -24,17 +24,24 @@
 package org.codehaus.plexus.archiver.gzip;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
 import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.archiver.BasePlexusArchiverTest;
 import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author Emmanuel Venisse
@@ -43,14 +50,15 @@ public class GZipArchiverTest
     extends BasePlexusArchiverTest
 {
 
+    @Test
     public void testCreateArchive()
         throws Exception
     {
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.addDirectory( getTestFile( "src" ) );
         zipArchiver.setDestFile( getTestFile( "target/output/archiveForGzip.zip" ) );
         zipArchiver.createArchive();
-        GZipArchiver archiver = (GZipArchiver) lookup( Archiver.ROLE, "gzip" );
+        GZipArchiver archiver = (GZipArchiver) lookup( Archiver.class, "gzip" );
         String[] inputFiles = new String[ 1 ];
         inputFiles[0] = "archiveForGzip.zip";
         archiver.addDirectory( getTestFile( "target/output" ), inputFiles, null );
@@ -58,11 +66,11 @@ public class GZipArchiverTest
         archiver.createArchive();
     }
 
-
+    @Test
     public void testCreateEmptyArchive()
         throws Exception
     {
-        GZipArchiver archiver = (GZipArchiver) lookup( Archiver.ROLE, "gzip" );
+        GZipArchiver archiver = (GZipArchiver) lookup( Archiver.class, "gzip" );
         archiver.setDestFile( getTestFile( "target/output/empty.gz" ) );
         try
         {
@@ -75,19 +83,20 @@ public class GZipArchiverTest
         }
     }
 
+    @Test
     public void testCreateResourceCollection()
         throws Exception
     {
         final File pomFile = new File( "pom.xml" );
         final File gzFile = new File( "target/output/pom.xml.gz" );
-        GZipArchiver gzipArchiver = (GZipArchiver) lookup( Archiver.ROLE, "gzip" );
+        GZipArchiver gzipArchiver = (GZipArchiver) lookup( Archiver.class, "gzip" );
         gzipArchiver.setDestFile( gzFile );
         gzipArchiver.addFile( pomFile, "pom.xml" );
         FileUtils.removePath( gzFile.getPath() );
         gzipArchiver.createArchive();
 
         final File zipFile = new File( "target/output/pom.zip" );
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.setDestFile( zipFile );
         zipArchiver.addArchivedFileSet( gzFile, "prfx/" );
         FileUtils.removePath( zipFile.getPath() );
@@ -96,7 +105,7 @@ public class GZipArchiverTest
         final ZipFile juZipFile = new ZipFile( zipFile );
         final ZipEntry zipEntry = juZipFile.getEntry( "prfx/target/output/pom.xml" );
         final InputStream archivePom = juZipFile.getInputStream( zipEntry );
-        final InputStream pom = new FileInputStream( pomFile );
+        final InputStream pom = Files.newInputStream( pomFile.toPath() );
         assertTrue( Arrays.equals( IOUtil.toByteArray( pom ), IOUtil.toByteArray( archivePom ) ) );
         archivePom.close();
         pom.close();
@@ -109,6 +118,7 @@ public class GZipArchiverTest
      *
      * @throws Exception
      */
+    @Test
     public void testTarGzIsForcedBehaviour() throws Exception
     {
         GZipArchiver gZipArchiver = (GZipArchiver) createArchiver( "gzip" );
@@ -127,7 +137,7 @@ public class GZipArchiverTest
 
         final long firstRunTime = gZipArchiver.getDestFile().lastModified();
 
-        assertFalse( creationTime == firstRunTime );
+        assertNotEquals( creationTime, firstRunTime );
 
         gZipArchiver = (GZipArchiver) createArchiver( "gzip" );
 

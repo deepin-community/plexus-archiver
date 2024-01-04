@@ -16,25 +16,32 @@
  */
 package org.codehaus.plexus.archiver.zip;
 
+import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
+import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.SequenceInputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
+import java.util.Calendar;
+import java.util.Deque;
 import java.util.Hashtable;
-import java.util.Stack;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
+
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
 import org.apache.commons.compress.parallel.InputStreamSupplier;
-import org.apache.commons.compress.utils.Charsets;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.Archiver;
@@ -43,17 +50,12 @@ import org.codehaus.plexus.archiver.ResourceIterator;
 import org.codehaus.plexus.archiver.UnixStat;
 import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
+import org.codehaus.plexus.archiver.util.Streams;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.util.FileUtils;
-import org.codehaus.plexus.util.IOUtil;
-import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
-import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
 
-@SuppressWarnings(
-{
-    "NullableProblems", "UnusedDeclaration"
-} )
+@SuppressWarnings( { "UnusedDeclaration" } )
 public abstract class AbstractZipArchiver
     extends AbstractArchiver
 {
@@ -92,6 +94,7 @@ public abstract class AbstractZipArchiver
     /**
      * @deprecated Use {@link Archiver#setDuplicateBehavior(String)} instead.
      */
+    @Deprecated
     protected final String duplicate = Archiver.DUPLICATES_SKIP;
 
     /**
@@ -99,29 +102,6 @@ public abstract class AbstractZipArchiver
      * to adding back the unchanged files
      */
     protected boolean addingNewFiles = false;
-
-    /**
-     * Whether the file modification times will be rounded up to the
-     * next even number of seconds.
-     * <p/>
-     * <p>
-     * Zip archives store file modification times with a
-     * granularity of two seconds, so the times will either be rounded
-     * up or down. If you round down, the archive will always seem
-     * out-of-date when you rerun the task, so the default is to round
-     * up. Rounding up may lead to a different type of problems like
-     * JSPs inside a web archive that seem to be slightly more recent
-     * than precompiled pages, rendering precompilation useless.</p>
-     *
-     * <p/>
-     * plexus-archiver chooses to round up.
-     * <p/>
-     * Java versions up to java7 round timestamp down, which means we add a heuristic value (which is slightly
-     * questionable)
-     * Java versions from 8 and up round timestamp up.
-     * s
-     */
-    private static final boolean isJava7OrLower = getJavaVersion() <= 7;
 
     // Renamed version of original file, if it exists
     private File renamedFile = null;
@@ -133,19 +113,6 @@ public abstract class AbstractZipArchiver
     private ConcurrentJarCreator zOut;
 
     protected ZipArchiveOutputStream zipArchiveOutputStream;
-
-    private static int getJavaVersion()
-    {
-        String javaSpecVersion = System.getProperty( "java.specification.version" );
-        if ( javaSpecVersion.contains( "." ) )
-        {//before jdk 9
-            return Integer.parseInt( javaSpecVersion.split( "\\." )[1] );
-        }
-        else
-        {
-            return Integer.parseInt( javaSpecVersion );
-        }
-    }
 
     public String getComment()
     {
@@ -346,8 +313,8 @@ public abstract class AbstractZipArchiver
     /**
      * Gets the {@code UnicodeExtraFieldPolicy} to apply.
      *
-     * @return {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NEVER}, if the effective encoding is
-     * UTF-8; {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS}, if the effective encoding is not
+     * @return {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy#NEVER}, if the effective encoding is
+     * UTF-8; {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy#ALWAYS}, if the effective encoding is not
      * UTF-8.
      *
      * @see #getEncoding()
@@ -362,11 +329,11 @@ public abstract class AbstractZipArchiver
             effectiveEncoding = Charset.defaultCharset().name();
         }
 
-        boolean utf8 = Charsets.UTF_8.name().equalsIgnoreCase( effectiveEncoding );
+        boolean utf8 = StandardCharsets.UTF_8.name().equalsIgnoreCase( effectiveEncoding );
 
         if ( !utf8 )
         {
-            for ( String alias : Charsets.UTF_8.aliases() )
+            for ( String alias : StandardCharsets.UTF_8.aliases() )
             {
                 if ( alias.equalsIgnoreCase( effectiveEncoding ) )
                 {
@@ -444,7 +411,7 @@ public abstract class AbstractZipArchiver
     {
         if ( !doFilesonly && getIncludeEmptyDirs() )
         {
-            Stack<String> directories = addedDirs.asStringStack( entry );
+            Deque<String> directories = addedDirs.asStringDeque( entry );
 
             while ( !directories.isEmpty() )
             {
@@ -495,17 +462,16 @@ public abstract class AbstractZipArchiver
         if ( !skipWriting )
         {
             ZipArchiveEntry ze = new ZipArchiveEntry( vPath );
-            setTime( ze, lastModified );
+            setZipEntryTime( ze, lastModified );
 
             ze.setMethod( doCompress ? ZipArchiveEntry.DEFLATED : ZipArchiveEntry.STORED );
             ze.setUnixMode( UnixStat.FILE_FLAG | mode );
 
-            InputStream payload;
             if ( ze.isUnixSymlink() )
             {
                 final byte[] bytes = encodeArchiveEntry( symlinkDestination, getEncoding() );
-                payload = new ByteArrayInputStream( bytes );
-                zOut.addArchiveEntry( ze, createInputStreamSupplier( payload ), true );
+                InputStreamSupplier payload = () -> new ByteArrayInputStream( bytes );
+                zOut.addArchiveEntry( ze, payload, true );
             }
             else
             {
@@ -516,7 +482,6 @@ public abstract class AbstractZipArchiver
 
     /**
      * Method that gets called when adding from java.io.File instances.
-     * <p/>
      * <p>
      * This implementation delegates to the six-arg version.</p>
      *
@@ -539,22 +504,15 @@ public abstract class AbstractZipArchiver
 
         final boolean b = entry.getResource() instanceof SymlinkDestinationSupplier;
         String symlinkTarget = b ? ( (SymlinkDestinationSupplier) entry.getResource() ).getSymlinkDestination() : null;
-        InputStreamSupplier in = new InputStreamSupplier()
-        {
-
-            @Override
-            public InputStream get()
+        InputStreamSupplier in = () -> {
+            try
             {
-                try
-                {
-                    return entry.getInputStream();
-                }
-                catch ( IOException e )
-                {
-                    throw new RuntimeException( e );
-                }
+                return entry.getInputStream();
             }
-
+            catch ( IOException e )
+            {
+                throw new UncheckedIOException( e );
+            }
         };
         try
         {
@@ -567,22 +525,26 @@ public abstract class AbstractZipArchiver
         }
     }
 
-    private void setTime( java.util.zip.ZipEntry zipEntry, long lastModified )
+    /**
+     * Set the ZipEntry dostime using the date if specified otherwise the original time.
+     *
+     * <p>Zip archives store file modification times with a granularity of two seconds, so the times will either be
+     * rounded up or down. If you round down, the archive will always seem out-of-date when you rerun the task, so the
+     * default is to round up. Rounding up may lead to a different type of problems like JSPs inside a web archive that
+     * seem to be slightly more recent than precompiled pages, rendering precompilation useless.
+     * plexus-archiver chooses to round up.
+     *
+     * @param zipEntry to set the last modified time
+     * @param lastModifiedTime to set in the zip entry only if {@link #getLastModifiedTime()} returns null
+     */
+    protected void setZipEntryTime( ZipArchiveEntry zipEntry, long lastModifiedTime )
     {
-        zipEntry.setTime( lastModified + ( isJava7OrLower ? 1999 : 0 ) );
+        if ( getLastModifiedTime() != null )
+        {
+            lastModifiedTime = getLastModifiedTime().toMillis();
+        }
 
-        /*   Consider adding extended file stamp support.....
-
-         X5455_ExtendedTimestamp ts =  new X5455_ExtendedTimestamp();
-         ts.setModifyJavaTime(new Date(lastModified));
-         if (zipEntry.getExtra() != null){
-         // Uh-oh. What do we do now.
-         throw new IllegalStateException("DIdnt expect to see xtradata here ?");
-
-         }  else {
-         zipEntry.setExtra(ts.getLocalFileDataData());
-         }
-         */
+        zipEntry.setTime( lastModifiedTime + 1999 );
     }
 
     protected void zipDir( PlexusIoResource dir, ConcurrentJarCreator zOut, String vPath, int mode,
@@ -621,12 +583,12 @@ public abstract class AbstractZipArchiver
 
             if ( dir != null && dir.isExisting() )
             {
-                setTime( ze, dir.getLastModified() );
+                setZipEntryTime( ze, dir.getLastModified() );
             }
             else
             {
                 // ZIPs store time with a granularity of 2 seconds, round up
-                setTime( ze, System.currentTimeMillis() );
+                setZipEntryTime( ze, System.currentTimeMillis() );
             }
             if ( !isSymlink )
             {
@@ -639,14 +601,14 @@ public abstract class AbstractZipArchiver
 
             if ( !isSymlink )
             {
-                zOut.addArchiveEntry( ze, createInputStreamSupplier( new ByteArrayInputStream( "".getBytes() ) ), true );
+                zOut.addArchiveEntry( ze, () -> Streams.EMPTY_INPUTSTREAM, true );
             }
             else
             {
                 String symlinkDestination = ( (SymlinkDestinationSupplier) dir ).getSymlinkDestination();
                 final byte[] bytes = encodeArchiveEntry( symlinkDestination, encodingToUse );
                 ze.setMethod( ZipArchiveEntry.DEFLATED );
-                zOut.addArchiveEntry( ze, createInputStreamSupplier( new ByteArrayInputStream( bytes ) ), true );
+                zOut.addArchiveEntry( ze, () -> new ByteArrayInputStream( bytes ), true );
             }
         }
     }
@@ -660,20 +622,6 @@ public abstract class AbstractZipArchiver
         encodedPayloadByteBuffer.get( encodedPayloadBytes );
 
         return encodedPayloadBytes;
-    }
-
-    protected InputStreamSupplier createInputStreamSupplier( final InputStream inputStream )
-    {
-        return new InputStreamSupplier()
-        {
-
-            @Override
-            public InputStream get()
-            {
-                return inputStream;
-            }
-
-        };
     }
 
     /**
@@ -694,10 +642,9 @@ public abstract class AbstractZipArchiver
         // because it does not permit a zero-entry archive.
         // Must create it manually.
         getLogger().info( "Note: creating empty " + archiveType + " archive " + zipFile );
-        OutputStream os = null;
-        try
+
+        try ( OutputStream os = Files.newOutputStream( zipFile.toPath() ) )
         {
-            os = new FileOutputStream( zipFile );
             // Cf. PKZIP specification.
             byte[] empty = new byte[ 22 ];
             empty[0] = 80; // P
@@ -706,27 +653,19 @@ public abstract class AbstractZipArchiver
             empty[3] = 6;
             // remainder zeros
             os.write( empty );
-            os.close();
-            os = null;
         }
         catch ( IOException ioe )
         {
             throw new ArchiverException( "Could not create empty ZIP archive " + "(" + ioe.getMessage() + ")", ioe );
-        }
-        finally
-        {
-            IOUtil.close( os );
         }
         return true;
     }
 
     /**
      * Do any clean up necessary to allow this instance to be used again.
-     * <p/>
      * <p>
      * When we get here, the Zip file has been closed and all we
      * need to do is to reset some globals.</p>
-     * <p/>
      * <p>
      * This method will only reset globals that have been changed
      * during execute(), it will not alter the attributes or nested
@@ -868,4 +807,25 @@ public abstract class AbstractZipArchiver
         return archiveType;
     }
 
+    @Override
+    protected FileTime normalizeLastModifiedTime( FileTime lastModifiedTime )
+    {
+        // timestamp of zip entries at zip storage level ignores timezone: managed in ZipEntry.setTime,
+        // that turns javaToDosTime: need to revert the operation here to get reproducible
+        // zip entry time
+        return FileTime.fromMillis( dosToJavaTime( lastModifiedTime.toMillis() ) );
+    }
+
+    /**
+     * Converts DOS time to Java time (number of milliseconds since epoch).
+     *
+     * @see java.util.zip.ZipEntry#setTime
+     * @see java.util.zip.ZipUtils#dosToJavaTime
+     */
+    private static long dosToJavaTime( long dosTime )
+    {
+        Calendar cal = Calendar.getInstance( TimeZone.getDefault(), Locale.ROOT );
+        cal.setTimeInMillis( dosTime );
+        return dosTime - ( cal.get( Calendar.ZONE_OFFSET ) + cal.get( Calendar.DST_OFFSET ) );
+    }
 }

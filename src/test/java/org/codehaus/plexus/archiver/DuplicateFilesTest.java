@@ -3,22 +3,25 @@ package org.codehaus.plexus.archiver;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Enumeration;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.codehaus.plexus.PlexusTestCase;
 import org.codehaus.plexus.archiver.tar.TarArchiver;
 import org.codehaus.plexus.archiver.tar.TarLongFileMode;
-import org.codehaus.plexus.logging.Logger;
 import org.codehaus.plexus.util.FileUtils;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author Erik Engstrom
  */
 public class DuplicateFilesTest
-    extends PlexusTestCase
+    extends TestSupport
 {
 
     private static final File file1 = getTestFile( "src/test/resources/group-writable/foo.txt" );
@@ -27,17 +30,12 @@ public class DuplicateFilesTest
 
     private static final File destination = getTestFile( "target/output/duplicateFiles" );
 
-    public void setUp()
-        throws Exception
-    {
-        super.setUp();
-        getContainer().getLoggerManager().setThreshold( Logger.LEVEL_DEBUG );
-    }
 
+    @Test
     public void testZipArchiver()
         throws Exception
     {
-        Archiver archiver = (Archiver) lookup( Archiver.ROLE, "zip" );
+        Archiver archiver = lookup( Archiver.class, "zip" );
         archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );
 
         File archive = createArchive( archiver, "zip" );
@@ -45,39 +43,43 @@ public class DuplicateFilesTest
         org.apache.commons.compress.archivers.zip.ZipFile zf =
             new org.apache.commons.compress.archivers.zip.ZipFile( archive );
 
-        Enumeration e = zf.getEntries();
+        Enumeration<ZipArchiveEntry> e = zf.getEntries();
         int entryCount = 0;
         while ( e.hasMoreElements() )
         {
-            ZipArchiveEntry entry = (ZipArchiveEntry) e.nextElement();
+            ZipArchiveEntry entry = e.nextElement();
             System.out.println( entry.getName() );
             entryCount++;
         }
+        zf.close();
+
         // Zip file should have 2 entries, 1 for the directory and one for foo.txt
         assertEquals( 2, entryCount );
         testArchive( archive, "zip" );
     }
 
+    @Test
     public void testDirArchiver()
         throws Exception
     {
-        Archiver archiver = (Archiver) lookup( Archiver.ROLE, "dir" );
+        Archiver archiver = lookup( Archiver.class, "dir" );
         createArchive( archiver, "dir" );
         testFinalFile( "target/output/duplicateFiles.dir/duplicateFiles/foo.txt" );
 
     }
 
+    @Test
     public void testTarArchiver()
         throws Exception
     {
-        TarArchiver archiver = (TarArchiver) lookup( Archiver.ROLE, "tar" );
+        TarArchiver archiver = (TarArchiver) lookup( Archiver.class, "tar" );
         archiver.setLongfile( TarLongFileMode.posix );
         archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );
 
         File archive = createArchive( archiver, "tar" );
         TarArchiveInputStream tis;
 
-        tis = new TarArchiveInputStream( new BufferedInputStream( new FileInputStream( archive ) ) );
+        tis = new TarArchiveInputStream( new BufferedInputStream( Files.newInputStream( archive.toPath() ) ) );
         int entryCount = 0;
         while ( ( tis.getNextEntry() ) != null )
         {
@@ -123,7 +125,7 @@ public class DuplicateFilesTest
     {
         // Check the content of the archive by extracting it
 
-        UnArchiver unArchiver = (UnArchiver) lookup( UnArchiver.ROLE, role );
+        UnArchiver unArchiver = lookup( UnArchiver.class, role );
         unArchiver.setSourceFile( archive );
 
         unArchiver.setDestDirectory( getTestFile( "target/output/" ) );
@@ -139,10 +141,10 @@ public class DuplicateFilesTest
     {
         File outputFile = getTestFile( path );
         assertTrue( outputFile.exists() );
-        BufferedReader reader = new BufferedReader( new FileReader( outputFile ) );
+        BufferedReader reader = Files.newBufferedReader( outputFile.toPath(), StandardCharsets.UTF_8 );
         String firstLine = reader.readLine();
         reader.close();
-        reader = new BufferedReader( new FileReader( file2 ) );
+        reader = Files.newBufferedReader( file2.toPath(), StandardCharsets.UTF_8 );
         String expectedFirstLine = reader.readLine();
         reader.close();
         assertEquals( expectedFirstLine, firstLine );

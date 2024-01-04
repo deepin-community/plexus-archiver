@@ -16,21 +16,25 @@
  */
 package org.codehaus.plexus.archiver.gzip;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.zip.GZIPInputStream;
-import org.codehaus.plexus.archiver.AbstractUnArchiver;
-import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.archiver.util.Streams;
+import javax.inject.Named;
+
 import static org.codehaus.plexus.archiver.util.Streams.copyFully;
 import static org.codehaus.plexus.archiver.util.Streams.fileInputStream;
 import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.zip.GZIPInputStream;
+
+import org.codehaus.plexus.archiver.AbstractUnArchiver;
+import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.archiver.util.Streams;
+
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
  */
+@Named( "gzip" )
 public class GZipUnArchiver
     extends AbstractUnArchiver
 {
@@ -60,7 +64,7 @@ public class GZipUnArchiver
         }
     }
 
-    private InputStream getGzipInputStream( FileInputStream in )
+    private InputStream getGzipInputStream( InputStream in )
         throws ArchiverException
     {
         try

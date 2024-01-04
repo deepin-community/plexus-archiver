@@ -2,3 +2,9 @@
 
 %:
 	dh $@
+
+override_dh_auto_build: 
+	# Workaround for maven-resources-plugin bug https://issues.apache.org/jira/browse/MRESOURCES-237
+	$(RM) src/test/resources/symlinks/src/sym*
+	$(RM) src/test/resources/symlinks/src/aDirWithALink/backOutsideToFileX
+	dh_auto_build

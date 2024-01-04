@@ -26,6 +26,7 @@ package org.codehaus.plexus.archiver.bzip2;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -35,6 +36,12 @@ import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author Emmanuel Venisse
@@ -43,14 +50,15 @@ public class BZip2ArchiverTest
     extends BasePlexusArchiverTest
 {
 
+    @Test
     public void testCreateArchive()
         throws Exception
     {
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.addDirectory( getTestFile( "src" ) );
         zipArchiver.setDestFile( getTestFile( "target/output/archiveForbz2.zip" ) );
         zipArchiver.createArchive();
-        BZip2Archiver archiver = (BZip2Archiver) lookup( Archiver.ROLE, "bzip2" );
+        BZip2Archiver archiver = (BZip2Archiver) lookup( Archiver.class, "bzip2" );
         String[] inputFiles = new String[ 1 ];
         inputFiles[0] = "archiveForbz2.zip";
         archiver.addDirectory( getTestFile( "target/output" ), inputFiles, null );
@@ -58,10 +66,11 @@ public class BZip2ArchiverTest
         archiver.createArchive();
     }
 
+    @Test
     public void testCreateEmptyArchive()
         throws Exception
     {
-        BZip2Archiver archiver = (BZip2Archiver) lookup( Archiver.ROLE, "bzip2" );
+        BZip2Archiver archiver = (BZip2Archiver) lookup( Archiver.class, "bzip2" );
         archiver.setDestFile( getTestFile( "target/output/empty.bz2" ) );
         try
         {
@@ -74,12 +83,13 @@ public class BZip2ArchiverTest
         }
     }
 
+    @Test
     public void testCreateResourceCollection()
         throws Exception
     {
         final File pomFile = new File( "pom.xml" );
         final File bz2File = new File( "target/output/pom.xml.bz2" );
-        BZip2Archiver bzip2Archiver = (BZip2Archiver) lookup( Archiver.ROLE, "bzip2" );
+        BZip2Archiver bzip2Archiver = (BZip2Archiver) lookup( Archiver.class, "bzip2" );
         bzip2Archiver.setDestFile( bz2File );
         bzip2Archiver.addFile( pomFile, "pom.xml" );
         FileUtils.removePath( bz2File.getPath() );
@@ -88,7 +98,7 @@ public class BZip2ArchiverTest
         System.out.println( "Created: " + bz2File.getAbsolutePath() );
 
         final File zipFile = new File( "target/output/pom.zip" );
-        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+        ZipArchiver zipArchiver = (ZipArchiver) lookup( Archiver.class, "zip" );
         zipArchiver.setDestFile( zipFile );
         zipArchiver.addArchivedFileSet( bz2File, "prfx/" );
         FileUtils.removePath( zipFile.getPath() );
@@ -97,7 +107,7 @@ public class BZip2ArchiverTest
         final ZipFile juZipFile = new ZipFile( zipFile );
         final ZipEntry zipEntry = juZipFile.getEntry( "prfx/target/output/pom.xml" );
         final InputStream archivePom = juZipFile.getInputStream( zipEntry );
-        final InputStream pom = new FileInputStream( pomFile );
+        final InputStream pom = Files.newInputStream( pomFile.toPath() );
 
         assertTrue( Arrays.equals( IOUtil.toByteArray( pom ), IOUtil.toByteArray( archivePom ) ) );
         archivePom.close();
@@ -111,6 +121,7 @@ public class BZip2ArchiverTest
      *
      * @throws Exception
      */
+    @Test
     public void testBz2IsForcedBehaviour() throws Exception
     {
         BZip2Archiver bZip2Archiver = (BZip2Archiver) createArchiver( "bzip2" );

@@ -5,21 +5,28 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.io.IOUtils;
-import org.codehaus.plexus.PlexusTestCase;
+import org.codehaus.plexus.archiver.TestSupport;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.components.io.resources.PlexusIoURLResource;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PlexusIoZipFileResourceCollectionTest
-    extends PlexusTestCase
+        extends TestSupport
 {
 
+    @Test
     public void testNamelessRootFolder()
         throws Exception
     {
@@ -33,6 +40,7 @@ public class PlexusIoZipFileResourceCollectionTest
         assertEquals( "dummy content", d.readLine() );
     }
 
+    @Test
     public void testDescriptionForError()
         throws Exception
     {
@@ -45,6 +53,7 @@ public class PlexusIoZipFileResourceCollectionTest
         assertTrue( descriptionForError.endsWith( "namelessrootfolder.jar!//dummy.txt" ) );
     }
 
+    @Test
     public void testFilesWithIllegalHtmlChars()
         throws Exception
     {
@@ -66,11 +75,12 @@ public class PlexusIoZipFileResourceCollectionTest
         }
     }
 
+    @Test
     public void testFilesThatAreNotThere()
         throws Exception
     {
         File testZip = new File( getBasedir(), "src/test/resources/archiveWithIllegalHtmlFileName.zip" );
-        Set<String> seen = new HashSet<String>();
+        Set<String> seen = new HashSet<>();
         seen.add( "AFileThatNeedsHtmlEsc%3F&gt" );
         seen.add( "Afile&lt;Yo&gt;.txt" );
         seen.add( "File With Space.txt" );
@@ -81,18 +91,19 @@ public class PlexusIoZipFileResourceCollectionTest
         while ( entries.hasNext() )
         {
             final PlexusIoResource next = entries.next();
-            assertTrue( next.getName() + "was not present", seen.remove( next.getName() ) );
+            assertTrue( seen.remove( next.getName() ), next.getName() + "was not present" );
             final URL url = next.getURL();
             final InputStream contents = next.getContents();
             contents.close();
         }
     }
 
+    @Test
     public void testSymlinkEntries()
         throws Exception
     {
         File testZip = new File( getBasedir(), "src/test/resources/symlinks/symlinks.zip" );
-        Map<String, String> symLinks = new HashMap<String, String>();
+        Map<String, String> symLinks = new HashMap<>();
         symLinks.put( "symDir", "targetDir/" );
         symLinks.put( "symLinkToDirOnTheOutside", "../dirOnTheOutside/" );
         symLinks.put( "symLinkToTheOutside", "../onTheOutside.txt" );
@@ -108,18 +119,36 @@ public class PlexusIoZipFileResourceCollectionTest
             String symLinkTarget = symLinks.remove( next.getName() );
             if ( symLinkTarget != null )
             {
-                assertTrue( next.getName() + " must be symlink", next.isSymbolicLink() );
+                assertTrue( next.isSymbolicLink(), next.getName() + " must be symlink" );
                 assertTrue( next instanceof SymlinkDestinationSupplier );
                 assertEquals( symLinkTarget,
                               ( (SymlinkDestinationSupplier) next ).getSymlinkDestination() );
             }
             else
             {
-                assertFalse( next.getName() + " must not be symlink", next.isSymbolicLink() );
+                assertFalse( next.isSymbolicLink(), next.getName() + " must not be symlink" );
             }
         }
 
         assertTrue( symLinks.isEmpty() );
+    }
+
+    @Test
+    public void testUnarchiveUnicodePathExtra()
+        throws Exception
+    {
+        PlexusIoZipFileResourceCollection prc = new PlexusIoZipFileResourceCollection();
+        prc.setFile( getTestFile( "src/test/resources/unicodePathExtra/efsclear.zip" ) );
+        Set<String> names = new HashSet<>();
+        final Iterator<PlexusIoResource> entries = prc.getEntries();
+        while ( entries.hasNext() )
+        {
+            final PlexusIoResource next = entries.next();
+            names.add(next.getName());
+        }
+        // a Unicode Path extra field should only be used when its CRC matches the header file name
+        assertEquals( new HashSet<>( Arrays.asList( "nameonly-name", "goodextra-extra", "badextra-name" ) ), names,
+                      "should use good extra fields but not bad ones" );
     }
 
 }
