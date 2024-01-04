@@ -1,6 +1,7 @@
 package org.codehaus.plexus.archiver;
 
 import javax.annotation.CheckForNull;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 import org.codehaus.plexus.components.io.functions.InputStreamTransformer;
 
@@ -36,7 +37,7 @@ public interface BaseFileSet
 
     /**
      * Returns, whether the include/exclude patterns are
-     * case sensitive.
+     * case-sensitive.
      */
     boolean isCaseSensitive();
 
@@ -64,5 +65,12 @@ public interface BaseFileSet
      * @return The transformers.
      */
     InputStreamTransformer getStreamTransformer();
+
+    /**
+     * Returns a set of file mappers, which should be used
+     * to change the filename of the included files.
+     */
+    @CheckForNull
+    FileMapper[] getFileMappers();
 
 }

@@ -1,1 +1,12 @@
-.pc/
+target/
+.project
+.classpath
+.settings/
+bin
+*.ipr
+*.iml
+*.iws
+.idea
+
+
+

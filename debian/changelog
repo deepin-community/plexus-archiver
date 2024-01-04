@@ -1,3 +1,76 @@
+plexus-archiver (4.6.1-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+    - Disabled zstd support
+    - Adjusted the jpms settings to run the tests with Java 17
+    - Depend on sisu-maven-plugin instead of plexus-component-metadata
+    - New dependencies on assertj-core and maven-resources-plugin
+  * Standards-Version updated to 4.6.2
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 11 Jan 2023 10:18:52 +0100
+
+plexus-archiver (4.3.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Refreshed the patches
+  * Standards-Version updated to 4.6.1
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Thu, 29 Sep 2022 14:31:49 +0200
+
+plexus-archiver (4.2.7-3) unstable; urgency=medium
+
+  * Team upload.
+  * Work around maven-resources-plugin bug
+    https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1013586
+    and remove the test symlinks. (Closes: #1013586)
+
+ -- Markus Koschany <apo@debian.org>  Wed, 29 Jun 2022 19:49:10 +0200
+
+plexus-archiver (4.2.7-2) unstable; urgency=medium
+
+  * Team upload.
+  * Improved the backward compatibility (Closes: #1010558)
+    - Default implementation of BaseFileSet.getFileMappers()
+    - Default implementation of the new Archiver methods
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Wed, 04 May 2022 18:18:14 +0200
+
+plexus-archiver (4.2.7-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ tony mancill ]
+  * Add patch to restore method signatures present in 3.6.0
+    that were removed in 4.2.2.
+
+  [ Emmanuel Bourg ]
+  * New upstream release
+    - Refreshed the patches
+  * Standards-Version updated to 4.6.0.1
+  * Switch to debhelper level 13
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Tue, 03 May 2022 20:06:06 +0200
+
+plexus-archiver (4.2.2-1) experimental; urgency=medium
+
+  * Team upload.
+  * New upstream version 4.2.2
+  * Update debian/watch to repack tarball with xz compression
+  * Refresh patches against new upstream version
+  * Update build dependency on plexus-io to 3.2
+  * Freshen years in debian/copyright
+  * Ship NOTICE.txt with binary package
+  * Specify debhelper compat 12 via debhelper-compat dependency
+  * Bump Standards-Version to 4.5.0
+  * Set "Rules-Requires-Root: no" in debian/control
+  * Add debian/gbp.conf to experimental branch
+  * Upload to experimental until reverse-dependencies can be updated
+
+ -- tony mancill <tmancill@debian.org>  Mon, 06 Apr 2020 07:14:46 -0700
+
 plexus-archiver (3.6.0-2) unstable; urgency=medium
 
   * Team upload.

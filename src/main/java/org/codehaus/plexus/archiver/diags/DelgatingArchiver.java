@@ -18,6 +18,9 @@ package org.codehaus.plexus.archiver.diags;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.attribute.FileTime;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import org.codehaus.plexus.archiver.ArchiveEntry;
@@ -329,6 +332,108 @@ public class DelgatingArchiver implements Archiver
     public void setIgnorePermissions( boolean ignorePermissions )
     {
         target.setIgnorePermissions( ignorePermissions );
+    }
+
+    /**
+     * @deprecated Use {@link #setLastModifiedTime(FileTime)} instead.
+     */
+    @Override
+    @Deprecated
+    public void setLastModifiedDate( final Date lastModifiedDate )
+    {
+        target.setLastModifiedDate( lastModifiedDate );
+    }
+
+    /**
+     * @deprecated Use {@link #getLastModifiedTime()} instead.
+     */
+    @Override
+    @Deprecated
+    public Date getLastModifiedDate()
+    {
+        return target.getLastModifiedDate();
+    }
+
+    @Override
+    public void setLastModifiedTime( final FileTime lastModifiedTime )
+    {
+        target.setLastModifiedTime( lastModifiedTime );
+    }
+
+    @Override
+    public FileTime getLastModifiedTime()
+    {
+        return target.getLastModifiedTime();
+    }
+
+    @Override
+    public void setFilenameComparator( final Comparator<String> filenameComparator )
+    {
+        target.setFilenameComparator( filenameComparator );
+    }
+
+    @Override
+    public void setOverrideUid( int uid )
+    {
+        target.setOverrideUid( uid );
+    }
+
+    @Override
+    public void setOverrideUserName( String userName )
+    {
+        target.setOverrideUserName( userName );
+    }
+
+    @Override
+    public int getOverrideUid()
+    {
+        return target.getOverrideUid();
+    }
+
+    @Override
+    public String getOverrideUserName()
+    {
+        return target.getOverrideUserName();
+    }
+
+    @Override
+    public void setOverrideGid( int gid )
+    {
+        target.setOverrideGid( gid );
+    }
+
+    @Override
+    public void setOverrideGroupName( String groupName )
+    {
+        target.setOverrideGroupName( groupName );
+    }
+
+    @Override
+    public int getOverrideGid()
+    {
+        return target.getOverrideGid();
+    }
+
+    @Override
+    public String getOverrideGroupName()
+    {
+        return target.getOverrideGroupName();
+    }
+
+    /**
+     * @deprecated Use {@link #configureReproducibleBuild(FileTime)} instead.
+     */
+    @Override
+    @Deprecated
+    public void configureReproducible( Date lastModifiedDate )
+    {
+        target.configureReproducible( lastModifiedDate );
+    }
+
+    @Override
+    public void configureReproducibleBuild( FileTime lastModifiedTime )
+    {
+        target.configureReproducibleBuild( lastModifiedTime );
     }
 
 }

@@ -16,6 +16,8 @@
  */
 package org.codehaus.plexus.archiver.war;
 
+import javax.inject.Named;
+
 import java.io.File;
 import java.io.IOException;
 import org.codehaus.plexus.archiver.ArchiveEntry;
@@ -28,7 +30,7 @@ import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
  * An extension of &lt;jar&gt; to create a WAR archive.
  * Contains special treatment for files that should end up in the
  * <code>WEB-INF/lib</code>, <code>WEB-INF/classes</code> or
- * <code>WEB-INF</code> directories of the Web Application Archive.</p>
+ * <code>WEB-INF</code> directories of the Web Application Archive.
  * <p>
  * (The War task is a shortcut for specifying the particular layout of a WAR file.
  * The same thing can be accomplished by using the <i>prefix</i> and <i>fullpath</i>
@@ -40,6 +42,7 @@ import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
  *
  * @see JarArchiver
  */
+@Named( "war" )
 public class WarArchiver
     extends JarArchiver
 {
@@ -72,7 +75,7 @@ public class WarArchiver
     /**
      * Indicates if the client is required to supply web.xml
      *
-     * @param excpectWebXml true if web xml is *expected* from the client
+     * @param expectWebXml true if web xml is *expected* from the client
      */
     public void setExpectWebXml( boolean expectWebXml )
     {
@@ -87,7 +90,7 @@ public class WarArchiver
 
     /**
      * set the deployment descriptor to use (WEB-INF/web.xml);
-     * required unless <tt>update=true</tt>
+     * required unless <code>update=true</code>
      */
     public void setWebxml( File descr )
         throws ArchiverException

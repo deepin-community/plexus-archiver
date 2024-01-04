@@ -1,3 +1,4 @@
 
+com.github.luben zstd-jni * * * *
 org.apache.maven.plugins maven-enforcer-plugin * * * *
 org.apache.maven.plugins maven-scm-publish-plugin * * * *

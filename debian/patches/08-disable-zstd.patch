@@ -1,0 +1,68 @@
+Description: Disabled zstd support due to missing dependencies
+Author: Emmanuel Bourg <ebourg@apache.org>
+Forwarded: not-needed
+--- a/src/main/java/org/codehaus/plexus/archiver/tar/TarArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarArchiver.java
+@@ -31,7 +31,6 @@
+ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+ import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream;
+-import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
+ import org.codehaus.plexus.archiver.AbstractArchiver;
+ import org.codehaus.plexus.archiver.ArchiveEntry;
+ import org.codehaus.plexus.archiver.ArchiverException;
+@@ -509,10 +508,6 @@
+         {
+             return new XZCompressorOutputStream( bufferedOutputStream( ostream ) );
+         }
+-        else if ( TarCompressionMethod.zstd.equals( tarCompressionMethod ) )
+-        {
+-            return new ZstdCompressorOutputStream( bufferedOutputStream( ostream ) );
+-        }
+ 
+         return ostream;
+     }
+--- a/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
+@@ -30,7 +30,6 @@
+ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+ import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+-import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
+ import org.codehaus.plexus.archiver.AbstractUnArchiver;
+ import org.codehaus.plexus.archiver.ArchiverException;
+ import org.codehaus.plexus.archiver.util.Streams;
+@@ -167,10 +166,6 @@
+         {
+             return new XZCompressorInputStream( istream );
+         }
+-        else if ( compression == UntarCompressionMethod.ZSTD )
+-        {
+-            return new ZstdCompressorInputStream( istream );
+-        }
+         return istream;
+     }
+ 
+--- a/pom.xml
++++ b/pom.xml
+@@ -153,6 +153,20 @@
+     <plugins>
+       <plugin>
+         <groupId>org.apache.maven.plugins</groupId>
++        <artifactId>maven-compiler-plugin</artifactId>
++        <!--<version>debian</version>-->
++        <configuration>
++          <excludes>
++            <exclude>**/*Zstd*</exclude>
++          </excludes>
++          <testExcludes>
++            <testExclude>**/*Zstd*</testExclude>
++          </testExcludes>
++        </configuration>
++      </plugin>
++
++      <plugin>
++        <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-release-plugin</artifactId>
+         <configuration>
+           <!-- olamy: exclude files with strange names as failed here on osx -->

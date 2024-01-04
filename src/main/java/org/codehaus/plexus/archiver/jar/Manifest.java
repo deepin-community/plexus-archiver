@@ -36,16 +36,16 @@ import org.codehaus.plexus.archiver.ArchiverException;
 
 /**
  * Holds the data of a jar manifest.
- * <p/>
+ * <p>
  * Manifests are processed according to the
- * {@link <a href="http://java.sun.com/j2se/1.4/docs/guide/jar/jar.html">Jar
- * file specification.</a>}.
+ * <a href="http://java.sun.com/j2se/1.4/docs/guide/jar/jar.html">Jar
+ * file specification.</a>
  * Specifically, a manifest element consists of
  * a set of attributes and sections. These sections in turn may contain
  * attributes. Note in particular that this may result in manifest lines
  * greater than 72 bytes (including line break) being wrapped and continued
  * on the next line. If an application can not handle the continuation
- * mechanism, it is a defect in the application, not this task.
+ * mechanism, it is a defect in the application, not this task.</p>
  *
  * @since Ant 1.4
  */
@@ -510,7 +510,7 @@ public class Manifest
          */
         public Attribute getAttribute( String attributeName )
         {
-            return attributes.get( attributeName.toLowerCase() );
+            return attributes.get( attributeName.toLowerCase( Locale.ENGLISH ) );
         }
 
         /**
@@ -755,29 +755,45 @@ public class Manifest
     /**
      * Construct a manifest from Ant's default manifest file.
      *
+     * @param minimalDefaultManifest
+     *            indicates whether a minimal manifest will be created, thus having only
+     *            {@code Manifest-Version: 1.0} in it.
+     *
      * @return the default manifest.
      *
-     * @throws ArchiverException if there is a problem loading the
-     * default manifest
+     * @throws ArchiverException
+     *             if there is a problem loading the default manifest
      */
-    public static Manifest getDefaultManifest()
+    public static Manifest getDefaultManifest( boolean minimalDefaultManifest )
         throws ArchiverException
     {
         final Manifest defaultManifest = new Manifest();
         defaultManifest.getMainAttributes().putValue( "Manifest-Version", "1.0" );
 
-        String createdBy = "Plexus Archiver";
-
-        final String plexusArchiverVersion = JdkManifestFactory.getArchiverVersion();
-
-        if ( plexusArchiverVersion != null )
+        if ( !minimalDefaultManifest )
         {
-            createdBy += " " + plexusArchiverVersion;
+            String createdBy = "Plexus Archiver";
+
+            final String plexusArchiverVersion = JdkManifestFactory.getArchiverVersion();
+
+            if ( plexusArchiverVersion != null )
+            {
+                createdBy += " " + plexusArchiverVersion;
+            }
+
+            defaultManifest.getMainAttributes().putValue( "Created-By", createdBy );
         }
 
-        defaultManifest.getMainAttributes().putValue( "Created-By", createdBy );
-
         return defaultManifest;
+    }
+
+    /**
+     * @see #getDefaultManifest(boolean)
+     */
+    public static Manifest getDefaultManifest()
+        throws ArchiverException
+    {
+        return getDefaultManifest( false );
     }
 
     /**

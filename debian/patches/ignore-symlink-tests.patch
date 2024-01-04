@@ -1,0 +1,58 @@
+Description: Work around a bug in maven-resources-plugin. https://issues.apache.org/jira/browse/MRESOURCES-237
+Author: Markus Koschany <apo@debian.org>
+Bug-Debian: https://bugs.debian.org/1013586
+Forwarded: not-needed
+--- a/src/test/java/org/codehaus/plexus/archiver/SymlinkTest.java
++++ b/src/test/java/org/codehaus/plexus/archiver/SymlinkTest.java
+@@ -19,6 +19,7 @@
+ /**
+  * @author Kristian Rosenvold
+  */
++@org.junit.jupiter.api.Disabled
+ public class SymlinkTest
+     extends TestSupport
+ {
+--- a/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java
++++ b/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java
+@@ -99,6 +99,7 @@
+     }
+ 
+     @Test
++    @org.junit.jupiter.api.Disabled
+     public void testSymlinkEntries()
+         throws Exception
+     {
+--- a/src/test/java/org/codehaus/plexus/archiver/zip/ZipArchiverTest.java
++++ b/src/test/java/org/codehaus/plexus/archiver/zip/ZipArchiverTest.java
+@@ -127,6 +127,7 @@
+     }
+ 
+     @Test
++    @Disabled
+     @DisabledOnOs( OS.WINDOWS )
+     public void testOveriddenPermissions()
+         throws IOException
+@@ -575,6 +576,7 @@
+ 
+     @Test
+     @DisabledOnOs( OS.WINDOWS )
++    @Disabled
+     public void testSymlinkZip()
+         throws Exception
+     {
+@@ -598,6 +600,7 @@
+ 
+     @Test
+     @DisabledOnOs( OS.WINDOWS )
++    @Disabled
+     @SuppressWarnings( "ResultOfMethodCallIgnored" )
+     public void testSymlinkFileSet()
+         throws Exception
+@@ -620,6 +623,7 @@
+     }
+ 
+     @Test
++    @Disabled
+     public void testSymlinkArchivedFileSet()
+         throws Exception
+     {

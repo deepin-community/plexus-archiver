@@ -1,4 +1,6 @@
 02-snappy-compatibility.patch
 03-plexus-utils-compatibility.patch
 04-ignore-utf8-unzip-test.patch
-05-plexus-containers-compatibility.patch
+06-plexus-archiver-3.6.0.patch
+ignore-symlink-tests.patch
+08-disable-zstd.patch

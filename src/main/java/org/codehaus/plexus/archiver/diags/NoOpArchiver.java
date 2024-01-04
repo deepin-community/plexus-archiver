@@ -18,7 +18,10 @@ package org.codehaus.plexus.archiver.diags;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.attribute.FileTime;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import org.codehaus.plexus.archiver.ArchiveEntry;
@@ -344,6 +347,108 @@ public class NoOpArchiver implements Archiver
     public void setIgnorePermissions( boolean ignorePermissions )
     {
         this.ignorePermissions = ignorePermissions;
+    }
+
+    /**
+     * @deprecated Use {@link #setLastModifiedTime(FileTime)} instead.
+     */
+    @Override
+    @Deprecated
+    public void setLastModifiedDate( final Date lastModifiedDate )
+    {
+
+    }
+
+    /**
+     * @deprecated Use {@link #getLastModifiedTime()} instead.
+     */
+    @Override
+    @Deprecated
+    public Date getLastModifiedDate()
+    {
+        return null;
+    }
+
+    @Override
+    public void setLastModifiedTime( final FileTime lastModifiedTime )
+    {
+
+    }
+
+    @Override
+    public FileTime getLastModifiedTime()
+    {
+        return null;
+    }
+
+    @Override
+    public void setFilenameComparator( final Comparator<String> filenameComparator )
+    {
+
+    }
+
+    @Override
+    public void setOverrideUid( int uid )
+    {
+
+    }
+
+    @Override
+    public void setOverrideUserName( String userName )
+    {
+
+    }
+
+    @Override
+    public int getOverrideUid()
+    {
+        return 0;
+    }
+
+    @Override
+    public String getOverrideUserName()
+    {
+        return null;
+    }
+
+    @Override
+    public void setOverrideGid( int gid )
+    {
+
+    }
+
+    @Override
+    public void setOverrideGroupName( String groupName )
+    {
+
+    }
+
+    @Override
+    public int getOverrideGid()
+    {
+        return 0;
+    }
+
+    @Override
+    public String getOverrideGroupName()
+    {
+        return null;
+    }
+
+    /**
+     * @deprecated Use {@link #configureReproducibleBuild(FileTime)} instead.
+     */
+    @Override
+    @Deprecated
+    public void configureReproducible( Date lastModifiedDate )
+    {
+
+    }
+
+    @Override
+    public void configureReproducibleBuild( FileTime lastModifiedTime )
+    {
+
     }
 
 }

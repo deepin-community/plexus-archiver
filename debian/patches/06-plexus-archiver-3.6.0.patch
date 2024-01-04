@@ -1,0 +1,159 @@
+Description: Restore method signatures present in plexus-archiver 3.6.0
+Author: tony mancill <tmancill@debian.org>
+
+--- a/src/main/java/org/codehaus/plexus/archiver/AbstractUnArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/AbstractUnArchiver.java
+@@ -440,6 +440,17 @@
+         // Override the existing file if isOverwrite() is true or if the file on disk is older than the one in the archive
+         return isOverwrite() || fileOnDiskIsOlderThanEntry;
+     }
++
++    // restore method signature as present in plexus-archiver 3.6.0
++    protected void extractFile( final File srcF, final File dir, final InputStream compressedInputStream,
++                                final String entryName, final Date entryDate, final boolean isDirectory,
++                                final Integer mode, String symlinkDestination )
++        throws IOException, ArchiverException
++    {
++        extractFile(srcF, dir, compressedInputStream,
++                    entryName, entryDate, isDirectory,
++                    mode, symlinkDestination, null );
++    }
+     
+     private String normalizedFileSeparator(String pathOrEntry) {
+     	return pathOrEntry.replace("/", File.separator);
+--- a/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/tar/TarUnArchiver.java
+@@ -130,6 +130,13 @@
+         }
+     }
+ 
++    // restore method signature as present in plexus-archiver 3.6.0
++    protected void execute( File sourceFile, File destDirectory )
++        throws ArchiverException
++    {
++        execute( sourceFile, destDirectory, null );
++    }
++
+     /**
+      * This method wraps the input stream with the
+      * corresponding decompression method
+--- a/src/main/java/org/codehaus/plexus/archiver/BaseFileSet.java
++++ b/src/main/java/org/codehaus/plexus/archiver/BaseFileSet.java
+@@ -71,6 +71,6 @@
+      * to change the filename of the included files.
+      */
+     @CheckForNull
+-    FileMapper[] getFileMappers();
++    default FileMapper[] getFileMappers() { return new FileMapper[0]; };
+ 
+ }
+--- a/src/main/java/org/codehaus/plexus/archiver/Archiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/Archiver.java
+@@ -393,14 +393,14 @@
+      * @deprecated Use {@link #setLastModifiedTime(FileTime)} instead
+      */
+     @Deprecated
+-    void setLastModifiedDate( final Date lastModifiedDate );
++    default void setLastModifiedDate( final Date lastModifiedDate ) { };
+ 
+     /**
+      * @since 4.2.0
+      * @deprecated Use {@link #getLastModifiedTime()} instead
+      */
+     @Deprecated
+-    Date getLastModifiedDate();
++    default Date getLastModifiedDate() { return null; };
+ 
+     /**
+      * Sets the last modification time of the entries (if non null).
+@@ -410,7 +410,7 @@
+      * @see #getLastModifiedTime()
+      * @since 4.3.0
+      */
+-    void setLastModifiedTime( final FileTime lastModifiedTime );
++    default void setLastModifiedTime( final FileTime lastModifiedTime ) { };
+ 
+     /**
+      * Returns the last modification time of the archiver.
+@@ -420,7 +420,7 @@
+      * @see #setLastModifiedTime(FileTime)
+      * @since 4.3.0
+      */
+-    FileTime getLastModifiedTime();
++    default FileTime getLastModifiedTime() { return null; };
+ 
+     /**
+      * Set filename comparator, used to sort file entries when scanning directories since File.list() does not
+@@ -428,47 +428,47 @@
+      *
+      * @since 4.2.0
+      */
+-    void setFilenameComparator( Comparator<String> filenameComparator );
++    default void setFilenameComparator( Comparator<String> filenameComparator ) { };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    void setOverrideUid( int uid );
++    default void setOverrideUid( int uid ) { };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    void setOverrideUserName( String userName );
++    default void setOverrideUserName( String userName ) { };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    int getOverrideUid();
++    default int getOverrideUid() { return 0; };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    String getOverrideUserName();
++    default String getOverrideUserName() { return null; };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    void setOverrideGid( int gid );
++    default void setOverrideGid( int gid ) { };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    void setOverrideGroupName( String groupName );
++    default void setOverrideGroupName( String groupName ) { };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    int getOverrideGid();
++    default int getOverrideGid() { return 0; };
+ 
+     /**
+      * @since 4.2.0
+      */
+-    String getOverrideGroupName();
++    default String getOverrideGroupName() { return null; };
+ 
+     /**
+      * This method is obsolete and will just call {@link #configureReproducibleBuild(FileTime)}
+@@ -479,7 +479,7 @@
+      * @deprecated Use {@link #configureReproducibleBuild(FileTime)} instead.
+      */
+     @Deprecated
+-    void configureReproducible( Date lastModifiedDate );
++    default void configureReproducible( Date lastModifiedDate ) { };
+ 
+     /**
+      * Configure the archiver to create archives in a reproducible way (see
+@@ -495,5 +495,5 @@
+      * @see <a href="https://reproducible-builds.org/">Reproducible Builds</a>
+      * @since 4.3.0
+      */
+-    void configureReproducibleBuild( FileTime lastModifiedTime );
++    default void configureReproducibleBuild( FileTime lastModifiedTime ) { };
+ }

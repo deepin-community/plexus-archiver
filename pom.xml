@@ -6,18 +6,18 @@
   <parent>
     <groupId>org.codehaus.plexus</groupId>
     <artifactId>plexus</artifactId>
-    <version>5.0</version>
+    <version>10</version>
   </parent>
 
   <artifactId>plexus-archiver</artifactId>
-  <version>3.6.0</version>
+  <version>4.6.1</version>
   <name>Plexus Archiver Component</name>
 
   <scm>
-    <connection>scm:git:git@github.com:codehaus-plexus/plexus-archiver.git</connection>
-    <developerConnection>scm:git:git@github.com:codehaus-plexus/plexus-archiver.git</developerConnection>
-    <url>http://github.com/codehaus-plexus/plexus-archiver</url>
-    <tag>plexus-archiver-3.6.0</tag>
+    <connection>scm:git:https://github.com/codehaus-plexus/plexus-archiver.git</connection>
+    <developerConnection>scm:git:https://github.com/codehaus-plexus/plexus-archiver.git</developerConnection>
+    <url>http://github.com/codehaus-plexus/plexus-archiver/tree/${project.scm.tag}/</url>
+    <tag>plexus-archiver-4.6.1</tag>
   </scm>
   <issueManagement>
     <system>jira</system>
@@ -31,7 +31,11 @@
   </distributionManagement>
 
   <properties>
-    <javaVersion>7</javaVersion>
+    <javaVersion>8</javaVersion>
+    <sisuVersion>0.3.5</sisuVersion>
+    <slf4jVersion>1.7.36</slf4jVersion>
+    <junitVersion>5.9.1</junitVersion>
+    <project.build.outputTimestamp>2023-01-01T12:40:08Z</project.build.outputTimestamp>
   </properties>
 
   <contributors>
@@ -48,26 +52,39 @@
   </contributors>
 
   <dependencies>
+    <!-- JSR330 -->
     <dependency>
-      <groupId>org.codehaus.plexus</groupId>
-      <artifactId>plexus-container-default</artifactId>
-      <version>1.0-alpha-30</version>
-      <scope>provided</scope>
+      <groupId>javax.inject</groupId>
+      <artifactId>javax.inject</artifactId>
+      <version>1</version>
     </dependency>
+    <!-- Plexus dependencies -->
     <dependency>
       <groupId>org.codehaus.plexus</groupId>
       <artifactId>plexus-utils</artifactId>
-      <version>3.1.0</version>
+      <version>3.5.0</version>
     </dependency>
     <dependency>
       <groupId>org.codehaus.plexus</groupId>
       <artifactId>plexus-io</artifactId>
-      <version>3.0.1</version>
+      <version>3.4.0</version>
+    </dependency>
+    <!-- Apache Commons dependencies -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.11.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
-      <version>1.16.1</version>
+      <version>1.22</version>
+    </dependency>
+    <!-- Other dependencies -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4jVersion}</version>
     </dependency>
     <dependency>
       <groupId>org.iq80.snappy</groupId>
@@ -75,10 +92,16 @@
       <version>0.4</version>
     </dependency>
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.12</version>
-      <scope>test</scope>
+      <groupId>org.tukaani</groupId>
+      <artifactId>xz</artifactId>
+      <version>1.9</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.github.luben</groupId>
+      <artifactId>zstd-jni</artifactId>
+      <version>1.5.2-5</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>com.google.code.findbugs</groupId>
@@ -86,14 +109,45 @@
       <version>3.0.2</version>
       <scope>provided</scope>
     </dependency>
+    <!-- Test dependencies -->
     <dependency>
-      <groupId>org.tukaani</groupId>
-      <artifactId>xz</artifactId>
-      <version>1.8</version>
-      <scope>runtime</scope>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junitVersion}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junitVersion}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>${slf4jVersion}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Plexus container dependencies -->
+    <dependency>
+      <groupId>org.eclipse.sisu</groupId>
+      <artifactId>org.eclipse.sisu.inject</artifactId>
+      <version>${sisuVersion}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.google.inject</groupId>
+      <artifactId>guice</artifactId>
+      <version>5.1.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.23.1</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
-
 
   <build>
     <plugins>
@@ -108,32 +162,26 @@
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-component-metadata</artifactId>
-        <executions>
-          <execution>
-            <goals>
-              <goal>generate-metadata</goal>
-            </goals>
-          </execution>
-        </executions>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <!--
+        maven totally change his way to copy symlink
+        this mean the symlink is copied as a symlink and not anymore as a new file
+        https://issues.apache.org/jira/browse/MRESOURCES-237
+        -->
+        <version>2.7</version>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
+        <version>${sisuVersion}</version>
         <executions>
           <execution>
-            <id>enforce-java</id>
+            <id>index-project</id>
             <goals>
-              <goal>enforce</goal>
+              <goal>main-index</goal>
+              <goal>test-index</goal>
             </goals>
-            <configuration>
-              <rules>
-                <requireJavaVersion>
-                  <version>1.7.0</version>
-                </requireJavaVersion>
-              </rules>
-            </configuration>
           </execution>
         </executions>
       </plugin>

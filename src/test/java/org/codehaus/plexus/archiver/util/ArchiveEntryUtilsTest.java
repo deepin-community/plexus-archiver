@@ -4,31 +4,29 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import org.codehaus.plexus.components.io.attributes.FileAttributes;
-import org.codehaus.plexus.util.Os;
-import junit.framework.TestCase;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
-public class ArchiveEntryUtilsTest extends TestCase
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class ArchiveEntryUtilsTest
 {
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testChmodForFileWithDollarPLXCOMP164() throws Exception
     {
-
-        if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            return;
-        }
         File temp = File.createTempFile( "A$A", "BB$" );
         ArchiveEntryUtils.chmod( temp, 0770 );
         assert0770( temp );
     }
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testChmodWithJava7() throws Exception
     {
-        if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            return;
-        }
-
         File temp = File.createTempFile( "D$D", "BB$" );
         ArchiveEntryUtils.chmod( temp, 0770 );
         assert0770( temp );

@@ -1,21 +1,21 @@
 package org.codehaus.plexus.archiver.zip;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+
 import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
-import org.apache.commons.compress.parallel.InputStreamSupplier;
 import org.apache.commons.compress.utils.IOUtils;
 import org.codehaus.plexus.util.DirectoryScanner;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings( "ResultOfMethodCallIgnored" )
-@Ignore
+@Disabled
 public class ConcurrentJarCreatorTest
 {
 
@@ -43,7 +43,7 @@ public class ConcurrentJarCreatorTest
     }
 
     @Test
-    @Ignore
+    @Disabled
     public void classic()
         throws Exception
     {
@@ -76,21 +76,15 @@ public class ConcurrentJarCreatorTest
             final File file = new File( base, fileName );
             ZipArchiveEntry za = createZipArchiveEntry( file, fileName );
 
-            mos.addArchiveEntry( za, new InputStreamSupplier()
-            {
-
-                public InputStream get()
+            mos.addArchiveEntry( za, () -> {
+                try
                 {
-                    try
-                    {
-                        return file.isFile() ? new FileInputStream( file ) : null;
-                    }
-                    catch ( FileNotFoundException e )
-                    {
-                        throw new RuntimeException( e );
-                    }
+                    return file.isFile() ? Files.newInputStream( file.toPath() ) : null;
                 }
-
+                catch ( IOException e )
+                {
+                    throw new UncheckedIOException( e );
+                }
             }, true );
         }
 
@@ -116,9 +110,9 @@ public class ConcurrentJarCreatorTest
             mos.putArchiveEntry( za );
             if ( file.isFile() )
             {
-                FileInputStream input = new FileInputStream( file );
-                IOUtils.copy( input, mos );
-                input.close();
+                try (InputStream input = Files.newInputStream( file.toPath() )) {
+                    IOUtils.copy( input, mos );
+                }
             }
             mos.closeArchiveEntry();
         }

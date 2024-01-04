@@ -23,19 +23,28 @@
  */
 package org.codehaus.plexus.archiver.tar;
 
+import static org.codehaus.plexus.archiver.util.Streams.bufferedInputStream;
+import static org.codehaus.plexus.components.io.resources.ResourceFactory.createResource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.codehaus.plexus.PlexusTestCase;
 import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.archiver.TestSupport;
 import org.codehaus.plexus.archiver.UnixStat;
 import org.codehaus.plexus.archiver.bzip2.BZip2Compressor;
 import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
@@ -48,18 +57,19 @@ import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributeUti
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.Os;
-import org.junit.Assert;
-import static org.codehaus.plexus.archiver.util.Streams.bufferedInputStream;
-import static org.codehaus.plexus.components.io.resources.ResourceFactory.createResource;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 /**
  * @author Emmanuel Venisse
  */
 public class TarArchiverTest
-    extends PlexusTestCase
+        extends TestSupport
 {
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testCreateArchiveWithDetectedModes()
         throws Exception
     {
@@ -82,15 +92,6 @@ public class TarArchiverTest
         int exeMode = 0777;
         int confMode = 0600;
         int logMode = 0640;
-
-        if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            StackTraceElement e = new Throwable().getStackTrace()[0];
-            System.out.println( "Cannot execute test: " + e.getMethodName() + " on "
-                                    + System.getProperty( "os.name" ) );
-
-            return;
-        }
 
         File tmpDir = null;
         try
@@ -127,7 +128,7 @@ public class TarArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + exeMode, exeMode, attrs.getOctalMode() );
+                    assertEquals( exeMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
 
                 for ( String path : confPaths )
@@ -140,8 +141,7 @@ public class TarArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + confMode, confMode,
-                                  attrs.getOctalMode() );
+                    assertEquals( confMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
 
                 for ( String path : logPaths )
@@ -154,7 +154,7 @@ public class TarArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + logMode, logMode, attrs.getOctalMode() );
+                    assertEquals( logMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
             }
 
@@ -191,7 +191,7 @@ public class TarArchiverTest
 
                 int mode = te.getMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + exeMode, exeMode, mode );
+                assertEquals( exeMode, mode, "Wrong mode for: " + path );
             }
 
             for ( String path : confPaths )
@@ -200,7 +200,7 @@ public class TarArchiverTest
 
                 int mode = te.getMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + confMode, confMode, mode );
+                assertEquals( confMode, mode, "Wrong mode for: " + path );
             }
 
             for ( String path : logPaths )
@@ -209,7 +209,7 @@ public class TarArchiverTest
 
                 int mode = te.getMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + logMode, logMode, mode );
+                assertEquals( logMode, mode, "Wrong mode for: " + path );
             }
         }
         finally
@@ -228,6 +228,7 @@ public class TarArchiverTest
         }
     }
 
+    @Test
     public void testCreateEmptyArchive()
         throws Exception
     {
@@ -244,6 +245,7 @@ public class TarArchiverTest
         }
     }
 
+    @Test
     public void testUnicode() throws Exception
     {
         File tmpDir = getTestFile( "src/test/resources/utf8" );
@@ -260,28 +262,21 @@ public class TarArchiverTest
         throws IOException, ArchiverException
     {
         File file = new File( dir, fname );
-        FileWriter writer = null;
 
-        try
+        if ( file.getParentFile() != null )
         {
-            if ( file.getParentFile() != null )
-            {
-                file.getParentFile().mkdirs();
-            }
-
-            writer = new FileWriter( file );
-            writer.write( "This is a test file." );
-            writer.close();
-            writer = null;
+            file.getParentFile().mkdirs();
         }
-        finally
+
+        try ( Writer writer = Files.newBufferedWriter( file.toPath(), StandardCharsets.UTF_8 ) )
         {
-            IOUtil.close( writer );
+            writer.write( "This is a test file." );
         }
 
         ArchiveEntryUtils.chmod( file, mode );
     }
 
+    @Test
     public void testCreateArchive()
         throws Exception
     {
@@ -323,15 +318,15 @@ public class TarArchiverTest
 
         TarArchiveInputStream tis;
 
-        tis = new TarArchiveInputStream( bufferedInputStream( new FileInputStream( archiver.getDestFile() ) ) );
+        tis = new TarArchiveInputStream( bufferedInputStream( Files.newInputStream( archiver.getDestFile().toPath() ) ) );
         TarArchiveEntry te;
 
         while ( ( te = tis.getNextTarEntry() ) != null )
         {
             if ( te.isDirectory() )
             {
-                assertEquals( "un-expected tar-entry mode for [te.name=" + te.getName() + "]", directoryMode,
-                              te.getMode() & UnixStat.PERM_MASK );
+                assertEquals( directoryMode, te.getMode() & UnixStat.PERM_MASK,
+                              "un-expected tar-entry mode for [te.name=" + te.getName() + "]" );
             }
             else if ( te.isSymbolicLink() )
             {
@@ -351,8 +346,8 @@ public class TarArchiverTest
                 }
                 else
                 {
-                    assertEquals( "un-expected tar-entry mode for [te.name=" + te.getName() + "]", defaultFileMode,
-                                  te.getMode() & UnixStat.PERM_MASK );
+                    assertEquals( defaultFileMode, te.getMode() & UnixStat.PERM_MASK,
+                                  "un-expected tar-entry mode for [te.name=" + te.getName() + "]" );
                 }
 
             }
@@ -361,6 +356,7 @@ public class TarArchiverTest
 
     }
 
+    @Test
     public void testCreateArchiveWithJiustASymlink()
         throws Exception
     {
@@ -380,15 +376,15 @@ public class TarArchiverTest
 
         TarArchiveInputStream tis;
 
-        tis = new TarArchiveInputStream( new BufferedInputStream( new FileInputStream( archiver.getDestFile() ) ) );
+        tis = new TarArchiveInputStream( new BufferedInputStream( Files.newInputStream( archiver.getDestFile().toPath() ) ) );
         TarArchiveEntry te;
 
         while ( ( te = tis.getNextTarEntry() ) != null )
         {
             if ( te.isDirectory() )
             {
-                assertEquals( "un-expected tar-entry mode for [te.name=" + te.getName() + "]", 0500,
-                              te.getMode() & UnixStat.PERM_MASK );
+                assertEquals( 0500, te.getMode() & UnixStat.PERM_MASK,
+                              "un-expected tar-entry mode for [te.name=" + te.getName() + "]" );
             }
             else if ( te.isSymbolicLink() )
             {
@@ -398,8 +394,7 @@ public class TarArchiverTest
             }
             else
             {
-                assertEquals( "un-expected tar-entry mode for [te.name=" + te.getName() + "]", 0400,
-                              te.getMode() & UnixStat.PERM_MASK );
+                assertEquals( 0400, te.getMode() & UnixStat.PERM_MASK, "un-expected tar-entry mode for [te.name=" + te.getName() + "]" );
             }
         }
         tis.close();
@@ -408,7 +403,7 @@ public class TarArchiverTest
 
     private TarArchiver getPosixTarArchiver() throws Exception
     {
-        TarArchiver archiver = (TarArchiver) lookup( Archiver.ROLE, "tar" );
+        TarArchiver archiver = (TarArchiver) lookup( Archiver.class, "tar" );
         archiver.setLongfile( TarLongFileMode.posix );
         return archiver;
     }
@@ -500,18 +495,21 @@ public class TarArchiverTest
 
     }
 
+    @Test
     public void testUncompressedResourceCollection()
         throws Exception
     {
         testCreateResourceCollection( new TarHandler() );
     }
 
+    @Test
     public void testGzipCompressedResourceCollection()
         throws Exception
     {
         testCreateResourceCollection( new GZipTarHandler() );
     }
 
+    @Test
     public void testGzipFIleHandleLeak()
         throws Exception
     {
@@ -520,30 +518,20 @@ public class TarArchiverTest
         final File tarFile2 = tarHandler.createTarfile2( tarFile );
         final TarFile cmp1 = tarHandler.newTarFile( tarFile );
         final TarFile cmp2 = new TarFile( tarFile2 );
-        ArchiveFileComparator.forEachTarArchiveEntry( cmp1, new ArchiveFileComparator.TarArchiveEntryConsumer()
-        {
-
-            @Override
-            public void accept( TarArchiveEntry ze1 )
-                throws IOException
-            {
-                final String name1 = ze1.getName();
-                Assert.assertNotNull( name1 );
-
-            }
-
-        } );
+        ArchiveFileComparator.forEachTarArchiveEntry( cmp1, ze1 -> assertNotNull( ze1.getName() ) );
         cmp1.close();
         cmp2.close();
 
     }
 
+    @Test
     public void testBzip2CompressedResourceCollection()
         throws Exception
     {
         testCreateResourceCollection( new BZip2TarHandler() );
     }
 
+    @Test
     public void testTarFileNotClosingInputStream()
         throws Exception
     {
@@ -562,11 +550,12 @@ public class TarArchiverTest
         final File tarFile2 = tarHandler.createTarfile2( tarFile );
         final TarFile cmp1 = tarHandler.newTarFile( tarFile );
         final TarFile cmp2 = new TarFile( tarFile2 );
-        ArchiveFileComparator.assertEquals( cmp1, cmp2, "prfx/" );
+        ArchiveFileComparator.assertTarEquals( cmp1, cmp2, "prfx/" );
         cmp1.close();
         cmp2.close();
     }
 
+    @Test
     public void testSymlinkArchivedFileSet()
         throws Exception
     {
@@ -581,7 +570,7 @@ public class TarArchiverTest
 
         final TarFile cmp1 = new TarFile( tarFile );
         final TarFile cmp2 = new TarFile( tarFile2 );
-        ArchiveFileComparator.assertEquals( cmp1, cmp2, "" );
+        ArchiveFileComparator.assertTarEquals( cmp1, cmp2, "" );
     }
 
 }

@@ -3,7 +3,7 @@ Upstream-Name: Plexus Archiver
 Source: https://github.com/codehaus-plexus/plexus-archiver
 
 Files: *
-Copyright: 2005-2017, The Codehaus Foundation
+Copyright: 2005-2020, The Codehaus Foundation
 License: Apache-2.0
 
 Files: src/test/java/org/codehaus/plexus/archiver/EmptyDirectoryTest.java

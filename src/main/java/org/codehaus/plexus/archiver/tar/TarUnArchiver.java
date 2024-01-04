@@ -16,25 +16,31 @@
  */
 package org.codehaus.plexus.archiver.tar;
 
-import java.io.BufferedInputStream;
+import javax.inject.Named;
+
+import static org.codehaus.plexus.archiver.util.Streams.bufferedInputStream;
+import static org.codehaus.plexus.archiver.util.Streams.fileInputStream;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 import org.codehaus.plexus.archiver.AbstractUnArchiver;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.util.Streams;
-import org.codehaus.plexus.util.IOUtil;
-import org.iq80.snappy.SnappyInputStream;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
+import org.iq80.snappy.SnappyFramedInputStream;
 
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
  */
+@Named( "tar" )
 public class TarUnArchiver
     extends AbstractUnArchiver
 {
@@ -55,8 +61,8 @@ public class TarUnArchiver
 
     /**
      * Set decompression algorithm to use; default=none.
-     * <p/>
-     * Allowable values are
+     * <p>
+     * Allowable values are </p>
      * <ul>
      * <li>none - no compression</li>
      * <li>gzip - Gzip compression</li>
@@ -84,48 +90,43 @@ public class TarUnArchiver
     protected void execute()
         throws ArchiverException
     {
-        execute( getSourceFile(), getDestDirectory() );
+        execute( getSourceFile(), getDestDirectory(), getFileMappers() );
     }
 
     @Override
     protected void execute( String path, File outputDirectory )
     {
-        execute( new File( path ), getDestDirectory() );
+        execute( new File( path ), getDestDirectory(), getFileMappers() );
     }
 
-    protected void execute( File sourceFile, File destDirectory )
+    protected void execute( File sourceFile, File destDirectory, FileMapper[] fileMappers )
         throws ArchiverException
     {
-        TarArchiveInputStream tis = null;
         try
         {
             getLogger().info( "Expanding: " + sourceFile + " into " + destDirectory );
             TarFile tarFile = new TarFile( sourceFile );
-            tis = new TarArchiveInputStream(
-                decompress( compression, sourceFile, new BufferedInputStream( new FileInputStream( sourceFile ) ) ) );
-            TarArchiveEntry te;
-            while ( ( te = tis.getNextTarEntry() ) != null )
+            try ( TarArchiveInputStream tis = new TarArchiveInputStream(
+                decompress( compression, sourceFile, bufferedInputStream( fileInputStream( sourceFile ) ) ) ) )
             {
-                TarResource fileInfo = new TarResource( tarFile, te );
-                if ( isSelected( te.getName(), fileInfo ) )
+                TarArchiveEntry te;
+                while ( ( te = tis.getNextTarEntry() ) != null )
                 {
-                    final String symlinkDestination = te.isSymbolicLink() ? te.getLinkName() : null;
-                    extractFile( sourceFile, destDirectory, tis, te.getName(), te.getModTime(), te.isDirectory(),
-                                 te.getMode() != 0 ? te.getMode() : null, symlinkDestination );
+                    TarResource fileInfo = new TarResource( tarFile, te );
+                    if ( isSelected( te.getName(), fileInfo ) )
+                    {
+                        final String symlinkDestination = te.isSymbolicLink() ? te.getLinkName() : null;
+                        extractFile( sourceFile, destDirectory, tis, te.getName(), te.getModTime(), te.isDirectory(),
+                            te.getMode() != 0 ? te.getMode() : null, symlinkDestination, fileMappers );
 
+                    }
                 }
+                getLogger().debug( "expand complete" );
             }
-            getLogger().debug( "expand complete" );
-            tis.close();
-            tis = null;
         }
         catch ( IOException ioe )
         {
             throw new ArchiverException( "Error while expanding " + sourceFile.getAbsolutePath(), ioe );
-        }
-        finally
-        {
-            IOUtil.close( tis );
         }
     }
 
@@ -153,11 +154,15 @@ public class TarUnArchiver
         }
         else if ( compression == UntarCompressionMethod.SNAPPY )
         {
-            return new SnappyInputStream( istream, true );
+            return new SnappyFramedInputStream( istream, true );
         }
         else if ( compression == UntarCompressionMethod.XZ )
         {
             return new XZCompressorInputStream( istream );
+        }
+        else if ( compression == UntarCompressionMethod.ZSTD )
+        {
+            return new ZstdCompressorInputStream( istream );
         }
         return istream;
     }
@@ -165,14 +170,15 @@ public class TarUnArchiver
     /**
      * Valid Modes for Compression attribute to Untar Task
      */
-    public static enum UntarCompressionMethod
+    public enum UntarCompressionMethod
     {
 
         NONE( "none" ),
         GZIP( "gzip" ),
         BZIP2( "bzip2" ),
         SNAPPY( "snappy" ),
-        XZ( "xz" );
+        XZ( "xz" ),
+        ZSTD( "zstd" );
 
         final String value;
 

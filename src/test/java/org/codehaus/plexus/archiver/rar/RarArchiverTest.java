@@ -20,6 +20,12 @@ import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.archiver.BasePlexusArchiverTest;
 import org.codehaus.plexus.archiver.UnArchiver;
 import org.codehaus.plexus.util.FileUtils;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author <a href="mailto:olamy@codehaus.org">olamy</a>
@@ -35,7 +41,8 @@ public class RarArchiverTest
     }
 
     @Override
-    protected void setUp()
+    @BeforeEach
+    public void setUp()
         throws Exception
     {
         super.setUp();
@@ -46,10 +53,11 @@ public class RarArchiverTest
         }
     }
 
+    @Test
     public void testArchive()
         throws Exception
     {
-        Archiver archiver = (Archiver) lookup( Archiver.ROLE, "rar" );
+        Archiver archiver = lookup( Archiver.class, "rar" );
         archiver.setDestFile( new File( getTargetRarFolder(), "test.rar" ) );
         //archiver.addDirectory( , "manifests" );
         archiver.addFile( getTestFile( "src/test/resources/manifests/manifest1.mf" ), "manifests/manifest1.mf" );
@@ -57,7 +65,7 @@ public class RarArchiverTest
         archiver.createArchive();
         assertTrue( new File( getTargetRarFolder(), "test.rar" ).exists() );
 
-        UnArchiver unArchiver = (UnArchiver) lookup( UnArchiver.ROLE, "rar" );
+        UnArchiver unArchiver = lookup( UnArchiver.class, "rar" );
         unArchiver.setSourceFile( new File( getTargetRarFolder(), "test.rar" ) );
         unArchiver.setDestDirectory( getTargetRarFolder() );
         unArchiver.extract();
@@ -68,11 +76,12 @@ public class RarArchiverTest
         assertTrue( manifestsFile.exists() );
     }
 
+    @Test
     public void testUnarchive()
         throws Exception
     {
 
-        UnArchiver unArchiver = (UnArchiver) lookup( UnArchiver.ROLE, "rar" );
+        UnArchiver unArchiver = lookup( UnArchiver.class, "rar" );
         File rarFile = new File( getBasedir() + "/src/test/jars/test.rar" );
         assertTrue( rarFile.exists() );
         unArchiver.setSourceFile( rarFile );
@@ -92,6 +101,7 @@ public class RarArchiverTest
      *
      * @throws Exception
      */
+    @Test
     public void testRarIsForcedBehaviour() throws Exception
     {
         Archiver rarArvhiver = createArchiver( "rar" );
@@ -112,7 +122,7 @@ public class RarArchiverTest
         rarArvhiver.createArchive();
 
         final long firstRunTime = rarArvhiver.getDestFile().lastModified();
-        assertFalse( creationTime == firstRunTime );
+        assertNotEquals( creationTime, firstRunTime );
 
         //waitUntilNewTimestamp( rarArvhiver.getDestFile(), firstRunTime );
         rarArvhiver = createArchiver( "rar" );

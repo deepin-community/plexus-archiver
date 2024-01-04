@@ -2,12 +2,14 @@ package org.codehaus.plexus.archiver;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
+
+import org.codehaus.plexus.archiver.util.DefaultFileSet;
 import org.codehaus.plexus.util.FileUtils;
-import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.StringUtils;
 
 /**
@@ -43,57 +45,50 @@ public class DotDirectiveArchiveFinalizer
     public void finalizeArchiveCreation( Archiver archiver )
         throws ArchiverException
     {
-        BufferedReader in = null;
         try
         {
-            List dotFiles = FileUtils.getFiles( dotFileDirectory, dotFilePrefix + "*", null );
+            List<File> dotFiles = FileUtils.getFiles( dotFileDirectory, dotFilePrefix + "*", null );
 
-            for ( Object dotFile1 : dotFiles )
+            for ( File dotFile : dotFiles )
             {
-                File dotFile = (File) dotFile1;
-
-                in = new BufferedReader( new FileReader( dotFile ) );
-
-                for ( String line = in.readLine(); line != null; line = in.readLine() )
+                try ( BufferedReader in = Files.newBufferedReader( dotFile.toPath(), StandardCharsets.UTF_8 ) )
                 {
-                    String[] s = StringUtils.split( line, ":" );
 
-                    if ( s.length == 1 )
+                    for ( String line = in.readLine(); line != null; line = in.readLine() )
                     {
-                        File directory = new File( dotFileDirectory, s[0] );
+                        String[] s = StringUtils.split( line, ":" );
 
-                        System.out.println( "adding directory = " + directory );
-
-                        archiver.addDirectory( directory );
-                    }
-                    else
-                    {
-                        File directory = new File( dotFileDirectory, s[0] );
-
-                        System.out.println( "adding directory = " + directory + " to: " + s[1] );
-
-                        if ( s[1].endsWith( "/" ) )
+                        if ( s.length == 1 )
                         {
-                            archiver.addDirectory( directory, s[1] );
+                            File directory = new File( dotFileDirectory, s[0] );
+
+                            System.out.println( "adding directory = " + directory );
+
+                            archiver.addFileSet( new DefaultFileSet( directory ) );
                         }
                         else
                         {
-                            archiver.addDirectory( directory, s[1] + "/" );
+                            File directory = new File( dotFileDirectory, s[0] );
+
+                            System.out.println( "adding directory = " + directory + " to: " + s[1] );
+
+                            if ( s[1].endsWith( "/" ) )
+                            {
+
+                                archiver.addFileSet( new DefaultFileSet( directory ).prefixed( s[1] ) );
+                            }
+                            else
+                            {
+                                archiver.addFileSet( new DefaultFileSet( directory ).prefixed( s[1] + "/" ) );
+                            }
                         }
                     }
                 }
-
-                in.close();
-                in = null;
             }
         }
         catch ( IOException e )
         {
             throw new ArchiverException( "Error processing dot files.", e );
-        }
-        finally
-        {
-            IOUtil.close( in );
         }
     }
 

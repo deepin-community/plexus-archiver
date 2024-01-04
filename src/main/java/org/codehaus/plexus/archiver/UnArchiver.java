@@ -17,13 +17,11 @@
 package org.codehaus.plexus.archiver;
 
 import java.io.File;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 
 public interface UnArchiver
 {
-
-    String ROLE = UnArchiver.class.getName();
-
     /**
      * Extract the archive.
      *
@@ -33,7 +31,7 @@ public interface UnArchiver
         throws ArchiverException;
 
     /**
-     * Take a patch into the archive and extract it to the specified directory.
+     * Take a path into the archive and extract it to the specified directory.
      *
      * @param path Path inside the archive to be extracted.
      * @param outputDirectory Directory to extract to.
@@ -73,6 +71,25 @@ public interface UnArchiver
     void setOverwrite( boolean b );
 
     /**
+     * Get chain of components which rewrite the target path of each unpacked file.
+     *
+     * @return {@link FileMapper}s to be used for rewriting each target path, or {@code null} if no rewriting shall happen.
+     *
+     * @since 3.7.0
+     */
+    FileMapper[] getFileMappers();
+
+    /***
+     * Sets chain of components to be used for rewriting target path of each unpacked file.
+     *
+     * @param fileMappers {@link FileMapper} to be used for rewriting each target path, or {@code null} if no
+     * rewriting shall happen.
+     *
+     * @since 3.7.0
+     */
+    void setFileMappers( FileMapper[] fileMappers );
+
+    /**
      * Sets a set of {@link FileSelector} instances, which may be used to select the files to extract from the archive.
      * If file selectors are present, then a file is only extracted, if it is confirmed by all file selectors.
      */
@@ -85,7 +102,7 @@ public interface UnArchiver
     FileSelector[] getFileSelectors();
 
     /**
-     * to use or not the jvm method for file permissions : user all <b>not active for group permissions</b>
+     * to use or not the jvm method for file permissions: user all <b>not active for group permissions</b>
      *
      * @since 1.1
      * @param useJvmChmod

@@ -26,18 +26,27 @@ package org.codehaus.plexus.archiver.zip;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
 import javax.annotation.Nonnull;
+
 import org.apache.commons.compress.archivers.zip.ExtraFieldUtils;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipExtraField;
@@ -59,13 +68,24 @@ import org.codehaus.plexus.components.io.attributes.FileAttributes;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributeUtils;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
 import org.codehaus.plexus.components.io.attributes.SimpleResourceAttributes;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
+import org.codehaus.plexus.components.io.filemappers.PrefixFileMapper;
 import org.codehaus.plexus.components.io.functions.InputStreamTransformer;
 import org.codehaus.plexus.components.io.resources.PlexusIoFileResourceCollection;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.components.io.resources.ResourceFactory;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.Os;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author Emmanuel Venisse
@@ -75,6 +95,7 @@ public class ZipArchiverTest
     extends BasePlexusArchiverTest
 {
 
+    @Test
     public void testImplicitPermissions()
         throws IOException
     {
@@ -105,29 +126,30 @@ public class ZipArchiverTest
         assertEquals( 0100111, pam.getUnixMode() );
     }
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testOveriddenPermissions()
         throws IOException
     {
-        if ( !Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            File zipFile = getTestFile( "target/output/zip-with-overriden-modes.zip" );
+        File zipFile = getTestFile( "target/output/zip-with-overriden-modes.zip" );
 
-            ZipArchiver archiver = getZipArchiver( zipFile );
-            archiver.setDefaultDirectoryMode( 0777 );
-            archiver.setDirectoryMode( 0641 );
-            archiver.setFileMode( 0777 );
-            archiver.addDirectory( new File( "src/test/resources/symlinks/src" ) );
-            archiver.createArchive();
+        ZipArchiver archiver = getZipArchiver( zipFile );
+        archiver.setDefaultDirectoryMode( 0777 );
+        archiver.setDirectoryMode( 0641 );
+        archiver.setFileMode( 0777 );
+        archiver.addDirectory( new File( "src/test/resources/symlinks/src" ) );
+        archiver.createArchive();
 
-            assertTrue( zipFile.exists() );
-            ZipFile zf = new ZipFile( zipFile );
-            ZipArchiveEntry fizz = zf.getEntry( "symDir" );
-            assertTrue( fizz.isUnixSymlink() );
-            ZipArchiveEntry symR = zf.getEntry( "symR" );
-            assertTrue( symR.isUnixSymlink() );
-        }
+        assertTrue( zipFile.exists() );
+        ZipFile zf = new ZipFile( zipFile );
+        ZipArchiveEntry fizz = zf.getEntry( "symDir" );
+        assertTrue( fizz.isUnixSymlink() );
+        ZipArchiveEntry symR = zf.getEntry( "symR" );
+        assertTrue( symR.isUnixSymlink() );
     }
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testCreateArchiveWithDetectedModes()
         throws Exception
     {
@@ -150,14 +172,6 @@ public class ZipArchiverTest
         int exeMode = 0777;
         int confMode = 0600;
         int logMode = 0640;
-
-        if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            StackTraceElement e = new Throwable().getStackTrace()[0];
-            System.out.println(
-                "Cannot execute test: " + e.getMethodName() + " on " + System.getProperty( "os.name" ) );
-            return;
-        }
 
         File tmpDir = null;
         try
@@ -194,7 +208,7 @@ public class ZipArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + exeMode, exeMode, attrs.getOctalMode() );
+                    assertEquals( exeMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
 
                 for ( String path : confPaths )
@@ -206,8 +220,7 @@ public class ZipArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + confMode, confMode,
-                                  attrs.getOctalMode() );
+                    assertEquals( confMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
 
                 for ( String path : logPaths )
@@ -219,7 +232,7 @@ public class ZipArchiverTest
                     }
 
                     assertNotNull( attrs );
-                    assertEquals( "Wrong mode for: " + path + "; expected: " + logMode, logMode, attrs.getOctalMode() );
+                    assertEquals( logMode, attrs.getOctalMode(), "Wrong mode for: " + path );
                 }
             }
 
@@ -248,7 +261,7 @@ public class ZipArchiverTest
 
                 int mode = ze.getUnixMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + exeMode, exeMode, mode );
+                assertEquals( exeMode, mode, "Wrong mode for: " + path );
             }
 
             for ( String path : confPaths )
@@ -257,7 +270,7 @@ public class ZipArchiverTest
 
                 int mode = ze.getUnixMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + confMode, confMode, mode );
+                assertEquals( confMode, mode, "Wrong mode for: " + path );
             }
 
             for ( String path : logPaths )
@@ -266,7 +279,7 @@ public class ZipArchiverTest
 
                 int mode = ze.getUnixMode() & UnixStat.PERM_MASK;
 
-                assertEquals( "Wrong mode for: " + path + "; expected: " + logMode, logMode, mode );
+                assertEquals( logMode, mode, "Wrong mode for: " + path );
             }
         }
         finally
@@ -285,6 +298,7 @@ public class ZipArchiverTest
         }
     }
 
+    @Test
     public void testCreateEmptyArchive()
         throws Exception
     {
@@ -305,7 +319,7 @@ public class ZipArchiverTest
     {
         try
         {
-            return (ZipArchiver) lookup( Archiver.ROLE, "zip" );
+            return (ZipArchiver) lookup( Archiver.class, "zip" );
         }
         catch ( Exception e )
         {
@@ -323,7 +337,7 @@ public class ZipArchiverTest
     private ZipUnArchiver getZipUnArchiver( File testJar )
         throws Exception
     {
-        ZipUnArchiver zu = (ZipUnArchiver) lookup( UnArchiver.ROLE, "zip" );
+        ZipUnArchiver zu = (ZipUnArchiver) lookup( UnArchiver.class, "zip" );
         zu.setSourceFile( testJar );
         return zu;
     }
@@ -332,28 +346,21 @@ public class ZipArchiverTest
         throws IOException, ArchiverException
     {
         File file = new File( dir, fname );
-        FileWriter writer = null;
 
-        try
+        if ( file.getParentFile() != null )
         {
-            if ( file.getParentFile() != null )
-            {
-                file.getParentFile().mkdirs();
-            }
-
-            writer = new FileWriter( file );
-            writer.write( "This is a test file." );
-            writer.close();
-            writer = null;
+            file.getParentFile().mkdirs();
         }
-        finally
+
+        try ( Writer writer = Files.newBufferedWriter( file.toPath(), StandardCharsets.UTF_8 ) )
         {
-            IOUtil.close( writer );
+            writer.write( "This is a test file." );
         }
 
         ArchiveEntryUtils.chmod( file, mode );
     }
 
+    @Test
     public void testCreateArchive()
         throws Exception
     {
@@ -362,6 +369,7 @@ public class ZipArchiverTest
         createArchive( archiver );
     }
 
+    @Test
     public void testRecompressAddedZips() throws Exception
     {
         // check that by default the zip archives are re-compressed
@@ -399,17 +407,18 @@ public class ZipArchiverTest
         assertEquals( ZipEntry.STORED, rarEntry.getMethod() );
         assertEquals( ZipEntry.DEFLATED, tarEntry.getMethod() );
         // ...and no file is corrupted in the process
-        assertTrue( IOUtil.contentEquals( new FileInputStream( getTestFile( "src/test/jars/test.zip" ) ),
+        assertTrue( IOUtil.contentEquals( Files.newInputStream( getTestFile( "src/test/jars/test.zip" ).toPath() ),
                     zfDontRecompress.getInputStream( zipEntry ) ) );
-        assertTrue( IOUtil.contentEquals( new FileInputStream( getTestFile( "src/test/jars/test.jar" ) ),
+        assertTrue( IOUtil.contentEquals( Files.newInputStream( getTestFile( "src/test/jars/test.jar" ).toPath() ),
                 zfDontRecompress.getInputStream( jarEntry ) ) );
-        assertTrue( IOUtil.contentEquals( new FileInputStream( getTestFile( "src/test/jars/test.rar" ) ),
+        assertTrue( IOUtil.contentEquals( Files.newInputStream( getTestFile( "src/test/jars/test.rar" ).toPath() ),
                 zfDontRecompress.getInputStream( rarEntry ) ) );
-        assertTrue( IOUtil.contentEquals( new FileInputStream( getTestFile( "src/test/jars/test.tar.gz" ) ),
+        assertTrue( IOUtil.contentEquals( Files.newInputStream( getTestFile( "src/test/jars/test.tar.gz" ).toPath() ),
                 zfDontRecompress.getInputStream( tarEntry ) ) );
         zfDontRecompress.close();
     }
 
+    @Test
     public void testAddArchivedFileSet()
         throws Exception
     {
@@ -429,6 +438,9 @@ public class ZipArchiverTest
 
         };
         sfd.setStreamTransformer( is );
+        PrefixFileMapper mapper = new PrefixFileMapper();
+        mapper.setPrefix( "prefix" );
+        sfd.setFileMappers( new FileMapper[] { mapper } );
         zipArchiver.addArchivedFileSet( sfd );
         zipArchiver.createArchive();
 
@@ -438,11 +450,12 @@ public class ZipArchiverTest
         zipUnArchiver.setDestFile( destFile );
         zipUnArchiver.extract();
         File a3byteFile = new File( destFile,
-                                    "Users/kristian/lsrc/plexus/plexus-archiver/src/main/java/org/codehaus/plexus/archiver/zip/ZipArchiver.java" );
+                                    "prefixUsers/kristian/lsrc/plexus/plexus-archiver/src/main/java/org/codehaus/plexus/archiver/zip/ZipArchiver.java" );
         assertTrue( a3byteFile.exists() );
         assertTrue( a3byteFile.length() == 3 );
     }
 
+    @Test
     public void testCreateArchiveWithStreamTransformer()
         throws IOException
     {
@@ -560,54 +573,53 @@ public class ZipArchiverTest
         }
     }
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     public void testSymlinkZip()
         throws Exception
     {
-        if ( !Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            final File zipFile = getTestFile( "target/output/pasymlinks.zip" );
-            final ZipArchiver zipArchiver = getZipArchiver( zipFile );
-            PlexusIoFileResourceCollection files = new PlexusIoFileResourceCollection();
-            files.setFollowingSymLinks( false );
-            files.setBaseDir( new File( "src/test/resources/symlinks" ) );
-            files.setPrefix( "plexus/" );
-            zipArchiver.addResources( files );
-            zipArchiver.createArchive();
-            final File output = getTestFile( "target/output/unzipped" );
-            output.mkdirs();
-            final ZipUnArchiver zipUnArchiver = getZipUnArchiver( zipFile );
-            zipUnArchiver.setDestFile( output );
-            zipUnArchiver.extract();
-            File symDir = new File( "target/output/unzipped/plexus/src/symDir" );
-            PlexusIoResourceAttributes fa = FileAttributes.uncached( symDir );
-            assertTrue( fa.isSymbolicLink() );
-        }
+        final File zipFile = getTestFile( "target/output/pasymlinks.zip" );
+        final ZipArchiver zipArchiver = getZipArchiver( zipFile );
+        PlexusIoFileResourceCollection files = new PlexusIoFileResourceCollection();
+        files.setFollowingSymLinks( false );
+        files.setBaseDir( new File( "src/test/resources/symlinks" ) );
+        files.setPrefix( "plexus/" );
+        zipArchiver.addResources( files );
+        zipArchiver.createArchive();
+        final File output = getTestFile( "target/output/unzipped" );
+        output.mkdirs();
+        final ZipUnArchiver zipUnArchiver = getZipUnArchiver( zipFile );
+        zipUnArchiver.setDestFile( output );
+        zipUnArchiver.extract();
+        File symDir = new File( "target/output/unzipped/plexus/src/symDir" );
+        PlexusIoResourceAttributes fa = FileAttributes.uncached( symDir );
+        assertTrue( fa.isSymbolicLink() );
     }
 
+    @Test
+    @DisabledOnOs( OS.WINDOWS )
     @SuppressWarnings( "ResultOfMethodCallIgnored" )
     public void testSymlinkFileSet()
         throws Exception
     {
-        if ( !Os.isFamily( Os.FAMILY_WINDOWS ) )
-        {
-            final File zipFile = getTestFile( "target/output/pasymlinks-fileset.zip" );
-            final ZipArchiver zipArchiver = getZipArchiver( zipFile );
-            final DefaultFileSet fs = new DefaultFileSet();
-            fs.setPrefix( "bzz/" );
-            fs.setDirectory( new File( "src/test/resources/symlinks/src" ) );
-            zipArchiver.addFileSet( fs );
-            zipArchiver.createArchive();
-            final File output = getTestFile( "target/output/unzipped/symlFs" );
-            output.mkdirs();
-            final ZipUnArchiver zipUnArchiver = getZipUnArchiver( zipFile );
-            zipUnArchiver.setDestFile( output );
-            zipUnArchiver.extract();
-            File symDir = new File( output, "bzz/symDir" );
-            PlexusIoResourceAttributes fa = FileAttributes.uncached( symDir );
-            assertTrue( fa.isSymbolicLink() );
-        }
+        final File zipFile = getTestFile( "target/output/pasymlinks-fileset.zip" );
+        final ZipArchiver zipArchiver = getZipArchiver( zipFile );
+        final DefaultFileSet fs = new DefaultFileSet();
+        fs.setPrefix( "bzz/" );
+        fs.setDirectory( new File( "src/test/resources/symlinks/src" ) );
+        zipArchiver.addFileSet( fs );
+        zipArchiver.createArchive();
+        final File output = getTestFile( "target/output/unzipped/symlFs" );
+        output.mkdirs();
+        final ZipUnArchiver zipUnArchiver = getZipUnArchiver( zipFile );
+        zipUnArchiver.setDestFile( output );
+        zipUnArchiver.extract();
+        File symDir = new File( output, "bzz/symDir" );
+        PlexusIoResourceAttributes fa = FileAttributes.uncached( symDir );
+        assertTrue( fa.isSymbolicLink() );
     }
 
+    @Test
     public void testSymlinkArchivedFileSet()
         throws Exception
     {
@@ -619,11 +631,46 @@ public class ZipArchiverTest
 
         final ZipFile cmp1 = new ZipFile( zipFile );
         final ZipFile cmp2 = new ZipFile( zipFile2 );
-        ArchiveFileComparator.assertEquals( cmp1, cmp2, "" );
+        ArchiveFileComparator.assertZipEquals( cmp1, cmp2, "" );
+    }
+
+    /*
+     * Zip archives store file modification times with a granularity of two seconds.
+     * Verify that ZipArchiver rounds up the last modified time.
+     */
+    @Test
+    public void testLastModifiedTimeRounding()
+        throws Exception
+    {
+        Path oddSecondsTimestampFile = Files.createTempFile( "odd-seconds-timestamp", null );
+        oddSecondsTimestampFile.toFile().deleteOnExit();
+        // The milliseconds part is set to zero as not all filesystem support timestamp more granular than second.
+        Files.setLastModifiedTime( oddSecondsTimestampFile, FileTime.fromMillis( 1534189011_000L ) );
+        Path evenSecondsTimestampFile = Files.createTempFile( "even-seconds-timestamp", null );
+        evenSecondsTimestampFile.toFile().deleteOnExit();
+        Files.setLastModifiedTime( evenSecondsTimestampFile, FileTime.fromMillis( 1534189012_000L ) );
+
+        File destFile = getTestFile( "target/output/last-modified-time.zip" );
+        ZipArchiver archiver = getZipArchiver( destFile );
+        archiver.addFile( oddSecondsTimestampFile.toFile(), "odd-seconds" );
+        archiver.addFile( evenSecondsTimestampFile.toFile(), "even-seconds" );
+        archiver.createArchive();
+
+        // verify that the last modified time of the entry is equal or newer than the original file
+        try ( ZipFile resultingZipFile = new ZipFile( destFile ) )
+        {
+            assertEquals( 1534189012_000L, resultingZipFile.getEntry( "odd-seconds" ).getTime() );
+            assertEquals( 1534189012_000L, resultingZipFile.getEntry( "even-seconds" ).getTime() );
+
+            FileTime expected = FileTime.fromMillis( 1534189012_000L );
+            assertEquals( expected, resultingZipFile.getEntry( "odd-seconds" ).getLastModifiedTime() );
+            assertEquals( expected, resultingZipFile.getEntry( "even-seconds" ).getLastModifiedTime() );
+        }
     }
 
     /*
      */
+    @Test
     public void testForced()
         throws Exception
     {
@@ -659,6 +706,7 @@ public class ZipArchiverTest
     }
 
     // Used to investigate extrafields
+    @Test
     public void testLookAtExtraZipFields_from_macos()
         throws IOException
     {
@@ -681,6 +729,7 @@ public class ZipArchiverTest
     }
 
     // Used to investigate date roundtrip behaviour across zip versions
+    @Test
     public void testZipStuff()
         throws IOException
     {
@@ -707,6 +756,8 @@ public class ZipArchiverTest
         System.out.println( "evenEntry.getTime() = " + new Date( evenEntry.getTime() ).toString() );
     }
 
+    @Disabled("Junit3 method name is notest")
+    @Test
     public void notestJustThatOne()
         throws Exception
     {
@@ -726,6 +777,7 @@ public class ZipArchiverTest
         zipArchiver2.createArchive();
     }
 
+    @Test
     public void testCreateResourceCollection()
         throws Exception
     {
@@ -746,16 +798,17 @@ public class ZipArchiverTest
 
         final ZipFile cmp1 = new ZipFile( zipFile );
         final ZipFile cmp2 = new ZipFile( zipFile2 );
-        ArchiveFileComparator.assertEquals( cmp1, cmp2, "prfx/" );
+        ArchiveFileComparator.assertZipEquals( cmp1, cmp2, "prfx/" );
         cmp1.close();
         cmp2.close();
     }
 
+    @Test
     public void testZipNonConcurrentResourceCollection()
         throws Exception
     {
         final File tarFile = getTestFile( "target/output/zip-non-concurrent.tar" );
-        TarArchiver tarArchiver = (TarArchiver) lookup( Archiver.ROLE, "tar" );
+        TarArchiver tarArchiver = (TarArchiver) lookup( Archiver.class, "tar" );
         tarArchiver.setDestFile( tarFile );
         // We're testing concurrency issue so we need large amount of files
         for ( int i = 0; i < 100; i++ )
@@ -776,11 +829,12 @@ public class ZipArchiverTest
 
         final TarFile cmp1 = new TarFile( tarFile );
         final ZipFile cmp2 = new ZipFile( zipFile );
-        ArchiveFileComparator.assertEquals( cmp1, cmp2, "prfx/" );
+        ArchiveFileComparator.assertTarZipEquals( cmp1, cmp2, "prfx/" );
         cmp1.close();
         cmp2.close();
     }
 
+    @Test
     public void testDefaultUTF8()
         throws IOException
     {
@@ -789,6 +843,7 @@ public class ZipArchiverTest
         zipArchiver.createArchive();
     }
 
+    @Test
     public void testDefaultUTF8withUTF8()
         throws IOException
     {
@@ -798,6 +853,7 @@ public class ZipArchiverTest
         zipArchiver.createArchive();
     }
 
+    @Test
     public void testForcedFileModes()
         throws IOException
     {
@@ -857,6 +913,60 @@ public class ZipArchiverTest
             fileModeAssert( 040676, zf.getEntry( "zz/sixsixsix/a/" ).getUnixMode() );
             fileModeAssert( 0100666, zf.getEntry( "zz/Test2.txt" ).getUnixMode() );
             zf.close();
+        }
+    }
+
+    @Test
+    public void testFixedEntryModificationTime()
+            throws IOException
+    {
+        final long almostMinDosTime = toLocalTimeZone( 315532802000L );
+
+        final File zipFile = getTestFile( "target/output/zip-with-fixed-entry-modification-times.zip" );
+        final ZipArchiver archiver = getZipArchiver( zipFile );
+        archiver.setLastModifiedTime( FileTime.fromMillis( almostMinDosTime ) );
+        archiver.addDirectory( new File( "src/test/resources/zip-timestamp" ) );
+        archiver.createArchive();
+
+        assertTrue( zipFile.exists() );
+        try ( final ZipFile zf = new ZipFile( zipFile ) )
+        {
+            assertEquals( almostMinDosTime, zf.getEntry( "file-with-even-time.txt" ).getTime() );
+            assertEquals( almostMinDosTime, zf.getEntry( "file-with-odd-time.txt" ).getTime() );
+            assertEquals( almostMinDosTime, zf.getEntry( "foo/" ).getTime() );
+        }
+    }
+
+    /**
+     * Takes a timestamp, turns it into a textual representation based on GMT, then translated it into a timestamp in
+     * local timezone. This makes the test independent of the current TimeZone. The reason this is necessary is:
+     * <ul>
+     * <li>ZIP file format does not take timezone into account.</li>
+     * <li>In the process of converting the ZipEntry time from the DOS date format specified by the ZIP file format, the
+     * timestamp is converted to a Java Date object, which DOES depends of the current system TimeZone, therefore
+     * changing the value of the Date object representing that timestamp relative to the local TimeZone.</li>
+     * </ul>
+     *
+     * @param timestamp the epoch time to convert.
+     * @return the timestamp matching the same input date but in the local TZ.
+     */
+    private long toLocalTimeZone( long timestamp )
+    {
+        String dateFormat = "dd-MM-yyyy hh:mm:ss a";
+        DateFormat formatterWithTimeZone = new SimpleDateFormat( dateFormat );
+        formatterWithTimeZone.setTimeZone( TimeZone.getTimeZone( "GMT" ) );
+        String sDate = formatterWithTimeZone.format( new Date( timestamp ) );
+
+        DateFormat formatter = new SimpleDateFormat( dateFormat );
+        try
+        {
+            Date dateWithTimeZone = formatter.parse( sDate );
+            return dateWithTimeZone.getTime();
+        }
+        catch ( ParseException e )
+        {
+            fail( "Date '" + sDate + "' can not be parsed!" );
+            return 0L;
         }
     }
 

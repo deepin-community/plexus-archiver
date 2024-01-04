@@ -15,8 +15,12 @@
  */
 package org.codehaus.plexus.archiver.dir;
 
+import javax.inject.Named;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.codehaus.plexus.archiver.AbstractArchiver;
@@ -33,11 +37,12 @@ import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 /**
  * A plexus archiver implementation that stores the files to archive in a directory.
  */
+@Named( "dir" )
 public class DirectoryArchiver
     extends AbstractArchiver
 {
 
-    private final List<Runnable> directoryChmods = new ArrayList<Runnable>();
+    private final List<Runnable> directoryChmods = new ArrayList<>();
 
     public void resetArchiver()
         throws IOException
@@ -91,7 +96,9 @@ public class DirectoryArchiver
                 {
                     String dest = ( (SymlinkDestinationSupplier) resource ).getSymlinkDestination();
                     File target = new File( dest );
-                    SymlinkUtils.createSymbolicLink( new File( fileName ), target );
+                    File symlink = new File( fileName );
+                    makeParentDirectories( symlink );
+                    SymlinkUtils.createSymbolicLink( symlink, target );
                 }
                 else
                 {
@@ -99,10 +106,7 @@ public class DirectoryArchiver
                 }
             }
 
-            for ( Runnable directoryChmod : directoryChmods )
-            {
-                directoryChmod.run();
-            }
+            directoryChmods.forEach( Runnable::run );
             directoryChmods.clear();
         }
         catch ( final IOException ioe )
@@ -142,15 +146,7 @@ public class DirectoryArchiver
 
         if ( !in.isDirectory() )
         {
-            if ( !outFile.getParentFile().exists() )
-            {
-                // create the parent directory...
-                if ( !outFile.getParentFile().mkdirs() )
-                {
-                    // Failure, unable to create specified directory for some unknown reason.
-                    throw new ArchiverException( "Unable to create directory or parent directory of " + outFile );
-                }
-            }
+            makeParentDirectories( outFile );
             ResourceUtils.copyFile( entry.getInputStream(), outFile );
 
             setFileModes( entry, outFile, inLastModified );
@@ -173,30 +169,51 @@ public class DirectoryArchiver
                 throw new ArchiverException( "Unable to create directory or parent directory of " + outFile );
             }
 
-            directoryChmods.add( new Runnable()
-            {
-
-                @Override
-                public void run()
+            directoryChmods.add( () -> {
+                try
                 {
                     setFileModes( entry, outFile, inLastModified );
                 }
-
+                catch ( IOException e )
+                {
+                    throw new ArchiverException( "Failed setting file attributes", e );
+                }
             } );
         }
 
     }
 
+    private static void makeParentDirectories( File file ) {
+        if ( !file.getParentFile().exists() )
+        {
+            // create the parent directory...
+            if ( !file.getParentFile().mkdirs() )
+            {
+                // Failure, unable to create specified directory for some unknown reason.
+                throw new ArchiverException( "Unable to create directory or parent directory of " + file );
+            }
+        }
+    }
+
     private void setFileModes( ArchiveEntry entry, File outFile, long inLastModified )
+        throws IOException
     {
         if ( !isIgnorePermissions() )
         {
             ArchiveEntryUtils.chmod( outFile, entry.getMode() );
         }
 
-        outFile.setLastModified( inLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
-                                     ? System.currentTimeMillis()
-                                     : inLastModified );
+        if ( getLastModifiedTime() == null )
+        {
+            FileTime fromMillis = FileTime.fromMillis( inLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
+                            ? System.currentTimeMillis()
+                            : inLastModified );
+            Files.setLastModifiedTime( outFile.toPath(), fromMillis );
+        }
+        else
+        {
+            Files.setLastModifiedTime( outFile.toPath(), getLastModifiedTime() );
+        }
     }
 
     @Override
